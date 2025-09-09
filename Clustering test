@@ -1,0 +1,113 @@
+Ok so last experiment (EC2 test) was a bust but contains valuable information on how to play with EC2 instances. I spoke with Artem which cleared up a large amount of my questions. the aim of this project is now to do the following:
+
+1. Run an all vs all alignment with Usearch (global is default, should be pretty simple)
+2. load into cytoscape one instance at a time. we are looking for large, mostly RNA clusters. Rayan has already calculated RNA enrichment levels. We can also use obelisks and delta viruses as control groups here. 
+
+In this file I'm gonna be doing the all vs all global alignment. 
+
+Connecting to my EC2 r5b.8xlarge instance (Circ_Bigboi):
+ssh -i "/Users/awsms1/RNA lab/EC2 big boi/Powerlifter.pem" ec2-user@18.191.64.109 
+
+Uploading Rayans data to the EC2:
+scp -i "/Users/awsms1/RNA lab/EC2 big boi/Powerlifter.pem" "/Users/awsms1/RNA lab/orfs.cluster_size_over_10.fasta" ec2-user@
+18.191.64.109:~
+
+Uploading Arterms copy of Usearch & renaming:
+scp -i "/Users/awsms1/RNA lab/EC2 big boi/Powerlifter.pem" "/Users/awsms1/RNA lab/usearch64" ec2-user@18.191.64.109:~
+mv usearch64 ~/bin/usearch
+chmod +x usearch
+
+Running global alignment of Rayans clustered orfs
+usearch -allpairs_global orfs.cluster_size_over_10.fasta -alnout orf10_cluster_alignment.aln -id 0.4
+(this shit takes foreeeeeever)
+
+Spun up a second one to test if more ram speeds up the process 
+
+Also ended up running a clustering based on ID35:
+ usearch -cluster_fast orfs.cluster_size_over_10.fasta -id 0.35 -centroids circ_centroids.fasta -uc circ_clusters.uc
+
+Sucess! Gonna also run at ID30 just to have it on hand in case Artem wants it cause I've got dead time. 
+
+Pulled files via: 
+scp -i "/Users/awsms1/RNA lab/EC2 big boi/Powerlifter.pem" \
+    ec2-user@3.17.138.100:/home/ec2-user/circ_clusters.uc \
+    "/Users/awsms1/RNA lab/EC2 big boi/circ_clusters.uc"
+
+(holy shit the .UC file is basically a 1.85GB .txt file, no wonder it's taking forever to open in cytoscape)
+
+Artem suggested I parse the data in R before loading it into cytoscape. I wanna see how many large vs small clusters there are to inform my approach so:
+library(data.table)
+
+uc <- fread("/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/circ_clustersID35.uc", sep="\t", header=FALSE, quote="")
+
+clusters <- uc[V1 == "C", .(Cluster = V2, Size = V3)]
+
+clusters_sorted <- clusters[order(-Size)]
+
+fwrite(clusters_sorted, "clusters_by_size.csv")
+
+head(clusters_sorted)
+
+Reading the output file, I've got 1188 clusters that are at or over 100 members. I should be able to load those into cytoscape methinks. 
+
+------------------------------------------------------------
+
+Creating an output file with the top 10 clusters:
+
+library(data.table)
+library(stringr)
+
+uc <- fread("/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/circ_clustersID35.uc", sep="\t", header=FALSE, quote="")
+
+
+clusters <- uc[V1 == "C", .(Cluster = V2, Size = as.numeric(V3))]
+
+
+top_clusters <- head(clusters[order(-Size)]$Cluster, 10)
+
+top_sequences <- uc[(V1 == "S" | V1 == "H") & V2 %in% top_clusters]
+
+setnames(top_sequences, old = names(top_sequences), 
+         new = c("RecordType","Cluster","SeqLength_or_ClusterSize","PctIdentity","Strand",
+                 "Unused1","Unused2","Alignment","Query","Target"))
+
+top_sequences[, Query_ID := str_split(Query, " ", simplify=TRUE)[,1]]
+top_sequences[, Target_ID := str_split(Target, " ", simplify=TRUE)[,1]]
+
+fwrite(top_sequences, "top_10_clusters_uc_cleaned.csv")
+
+
+nodes <- unique(top_sequences[, .(NodeID = Query_ID,
+                                  Cluster,
+                                  SeqLength_or_ClusterSize)])
+
+
+seed_nodes <- unique(top_sequences[RecordType=="H", .(NodeID = Target_ID)])
+seed_nodes <- data.table(NodeID = seed_nodes$NodeID)
+nodes <- unique(rbind(nodes, seed_nodes, fill=TRUE))
+
+fwrite(nodes, "cytoscape_nodes.csv")
+
+edges <- top_sequences[RecordType=="H", .(Source = Query_ID, Target = Target_ID, PctIdentity)]
+fwrite(edges, "cytoscape_edges.csv")
+
+-------------------------------------
+
+Artem asked for a distribution curve:
+
+library(data.table)
+library(ggplot2)
+
+clusters <- fread("clusters_by_size.csv")[, .(size = as.numeric(Size))]
+clusters <- clusters[!is.na(size)]
+
+counts <- clusters[, .N, by = size]  # N = count of each size
+setorder(counts, size)
+
+ggplot() +
+  geom_line(data = counts, aes(x = size, y = N), color = "purple", linewidth = 0.5) +
+  scale_x_log10() +
+  labs(title = "Distribution of Cluster Sizes",
+       x = "Cluster Size (log scale)",
+       y = "Count") +
+  theme_minimal()
