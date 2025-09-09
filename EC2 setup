@@ -1,0 +1,166 @@
+Document of an EC2 setup test. I'm aiming to get this thing running by end of day. 
+
+setup a second user 
+commands: configure --profile seconduser 
+          export AWS_PROFILE=seconduser (switches to second user, use default to swap back)
+          aws sts get-caller-identity (shows who you're using)
+
+
+Instance setup C4 Xlarge
+
+Identifying available images: 
+aws ec2 describe-images \
+  --owners amazon \
+  --filters "Name=name,Values=amzn2-ami-hvm-2.*-x86_64-gp2" \
+  --query "Images[*].[ImageId,Name]" \
+  --output table
+
+spinning up the image:
+aws ec2 run-insances \
+> --image-id ami-005efd5afe550784a \
+> --count 1 \
+> --instance-type c4.xlarge \
+> --key-name UsearchKey \
+> -- search-groups default \
+> --tag-specifications 'ResourceType=intance,Tags=[{Key=Name,Value=Enriched_Circ_Clustering}]
+
+
+Instance ID: aws ec2 describe-instances --region us-east-2
+
+"InstanceId": "XXXXXXX"
+
+ID: i-091c9c1c6b73188a4
+
+Check if Running:
+aws ec2 wait instance-running --instance-ids <new-instance-id>
+
+
+Grabbing the IP: 
+aws ec2 describe-instances \
+  --instance-ids i-091c9c1c6b73188a4 \
+  --query "Reservations[0].Instances[0].PublicIpAddress" \
+  --output text
+
+IP:52.15.193.46
+
+Stopping / starting the image:
+aws ec2 stop-instances --instance-ids <your-instance-id>
+aws ec2 start-instances --instance-ids <your-instance-id>
+
+Killing the image: 
+aws ec2 terminate-instances --instance-ids <your-instance-id>
+
+Had to make the key file private:
+chmod 400 UsearchKeypair.pem
+
+SSH connection: 
+ssh -i UsearchKeypair.pem ec2-user@52.15.193.46
+
+Transferring the target file over to the EC2 has to be done in a seperate instance outside of the SSH:
+scp -i "/Users/awsms1/RNA lab/EC2 setup test/UsearchKeypair.pem" "/Users/awsms1/RNA lab/orfs.cluster_size_over_10.fasta" ec2-user@52.15.193.46:~
+
+Installing Usearch:
+sudo yum install -y wget gzip
+
+wget https://www.drive5.com/downloads/usearch11.0.667_i86linux32.gz
+
+gunzip usearch11.0.667_i86linux32.gz
+
+chmod +x usearch11.0.667_i86linux32
+
+Confirming transfer:
+ls -l ~
+
+Making a bin path for Usearch cause I'm lazy and don't wanna input the whole path:
+mkdir -p ~/bin
+mv usearch11.0.667_i86linux32 ~/bin/usearch
+
+Confirming presence:
+ls -l ~/bin
+
+Running Uclust: 
+
+usearch -cluster_fast orfs.cluster_size_over_10.fasta -id 0.9 -centroids circ_output.fasta
+
+                |                      |                  |               |
+                |                      |                  |               |
+
+           Function              Input target          Cutoff          Output name
+
+Error getting thrown: 
+
+---Fatal error---
+Memory limit of 32-bit process exceeded, 64-bit build required
+
+Got artems license. Ask him for the 64 bit. I was asked to not disseminate it lol. 
+
+deleted the old usearch with the RM command, uploaded the new one (used the same lines of code used for transferring the target file)
+Ran Uclust as stated above. 
+
+Not enough memory. Setting up a new machine. 
+
+Had to import the key pair as well:
+aws ec2 describe-key-pairs --region us-east-2
+
+aws ec2 create-key-pair \
+    --key-name UsearchKeypair \
+    --query 'KeyMaterial' \
+    --output text > ~/Downloads/UsearchKeypair.pem
+chmod 400 ~/Downloads/UsearchKeypair.pem
+
+Following import: 
+
+aws ec2 run-instances \
+  --image-id ami-005efd5afe550784a \
+  --instance-type c4.4xlarge \
+  --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=Enriched_Circ_Clustering_BIG_BOI}]' \
+  --block-device-mappings '[{"DeviceName":"/dev/xvda","Ebs":{"VolumeSize":100,"VolumeType":"gp3"}}]' \
+  --region us-east-2 \
+  --key-name UsearchKeypair
+
+ID: i-09441fb85f18db161
+IP: 3.136.155.116
+
+Imported Usearch as Usearch64 via: scp -i "/Users/awsms1/RNA lab/EC2 big boi/UsearchKeypair.pem" "/Users/awsms1/RNA lab/usearch64" ec2-user@3.136.155.116:~
+
+Output:
+46:13 10.0Gb  100.0% Writing centroids to /home/ec2-user/circ_output.fasta
+                                                                          
+      Seqs  7271624 (7.3M)
+  Clusters  6044995 (6.0M)
+  Max size  480
+  Avg size  1.2
+  Min size  1
+Singletons  5507407 (5.5M), 75.7% of seqs, 91.1% of clusters
+   Max mem  10.0Gb
+      Time  45:51
+Throughput  2643.3 seqs/sec.
+
+Spinning up another instance for MUSCLE (I'm gonna try to make this one into a custom image)
+aws ec2 create-key-pair \
+> --key-name Powerlifter \ 
+> --query "KeyMaterial" \
+> --output text > Powerlifter.pem \
+> --region us-east-2
+
+ID:i-0e761a00395c08766
+
+Connecting: 
+ssh -i Powerlifter.pem ec2-user@3.141.164.195
+
+MUSCLE download:
+wget https://github.com/rcedgar/muscle/releases/download/v5.3/muscle-linux-x86.v5.3
+
+chmod +x muscle-linux-x86.v5.3
+
+mkdir -p ~/bin
+mv muscle-linux-x86.v5.3 ~/bin/muscle
+
+echo 'export PATH=$HOME/bin:$PATH' >> ~/.bashrc
+source ~/.bashrc
+
+Uploaded circ_output.fasta to 3.141.164.195 (circ_muscle)
+
+standard muscle alignment was way too heavy for the dataset, switching to -super5
+
+there is a chance I didnt have to any of this...
