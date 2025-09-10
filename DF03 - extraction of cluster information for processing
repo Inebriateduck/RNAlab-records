@@ -1,0 +1,269 @@
+I have an excessively large amount of clusters (about 4 million) from the previous experiment. I'm willing to bet that a lot of the lower 
+member count clusters are junk, so I need to filter them out during future processing. Therefore I'll be stratifying the clusters based on 
+the number of members in each cluster, and will be focusing on the top 500 clusters by size. 
+
+-------- Splitting of clusters by size to yield the top 500 ------------------------------------------------------------------------------
+
+library(data.table)
+
+input_file <- "/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/circ_clustersID35.uc"
+output_dir <- "/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/rawsize_splits"
+dir.create(output_dir, showWarnings = FALSE)
+
+uc <- fread(input_file, sep="\t", header=FALSE, quote="", data.table=TRUE)
+
+clusters <- uc[V1 == "C", .(Cluster = V2, Size = as.numeric(V3))]
+
+clusters[, Bin := fifelse(Size >= 500, "500+",
+                          fifelse(Size >= 100,
+                                  paste0((Size %/% 100) * 100, "-", ((Size %/% 100) * 100 + 99)),
+                                  paste0((Size %/% 10) * 10, "-", ((Size %/% 10) * 10 + 9))))]
+
+print_cluster_counts <- function(cluster_dt) {
+  cat("Unique clusters per raw size bin:\n")
+  counts <- cluster_dt[, .(NumClusters = uniqueN(Cluster)), by = Bin][order(-Bin)]
+  print(counts)
+}
+
+print_cluster_counts(clusters)
+
+for (bin_name in unique(clusters$Bin)) {
+  clusters_in_bin <- clusters[Bin == bin_name, Cluster]
+  
+  subset_uc <- uc[V2 %in% clusters_in_bin]
+  subset_uc <- subset_uc[order(V2)]
+  
+  output_file <- file.path(output_dir, paste0("uclust_", bin_name, ".uc"))
+  fwrite(subset_uc, output_file, sep="\t", quote=FALSE, col.names=FALSE)
+  
+  cat("Written bin", bin_name, "to", output_file, "with", nrow(subset_uc), "rows\n")
+}
+
+------ Data cleaning for use in alignment (R): ----------------------------------------------------------
+
+library(data.table)
+library(stringr)
+library(Biostrings) 
+
+fasta_file <- "/Users/awsms1/RNA lab/orfs.cluster_size_over_10.fasta"
+alignment_dir <- "/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/rawsize_splits/uclust_500+.uc"
+output_dir <- "/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/extracted/over_500"
+dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
+
+fasta <- readAAStringSet(fasta_file)
+names(fasta) <- str_trim(names(fasta))  
+
+
+alignment_files <- alignment_dir
+
+for (afile in alignment_files) {
+ 
+  uc <- fread(afile, sep="\t", header=FALSE, quote="", data.table=TRUE)
+  
+ 
+  clusters <- unique(uc[V1 == "C", V2])
+  
+ 
+  for (cl in clusters) {
+    
+    source_ids <- unique(uc[V2 == cl, V9])
+    
+    
+    fasta_ids <- names(fasta)
+    matches <- fasta[fasta_ids %in% source_ids]
+    
+    if (length(matches) > 0) {
+
+      out_file <- file.path(output_dir, paste0("cluster_", cl, ".fasta"))
+      
+      writeXStringSet(matches, out_file)
+      
+      cat("Written cluster", cl, "to", out_file, "with", length(matches), "sequences\n")
+    }
+    
+    }
+  }
+
+-------- Alignment script: -------------------------------------------------------------------------------------------------------
+
+-allpairs_global cluster_16515.fasta -id 0.75 -alnout 16515_ID75.aln
+
+Then download the resulting files... duh
+
+Next step is to run clean it so it can be inputted into cytoscape because the aligner output is NOT cytoscape friendly... at all...
+
+-------- R script: ----------------------------------------------------------------------------------------------------------------
+
+library(data.table)
+library(stringr)
+library(R.utils)  # for countLines
+
+input_folder <- "/Users/awsms1/RNA lab/aligned clusters/over_500_aln"  # folder containing .aln files
+output_folder <- "/Users/awsms1/RNA lab/Cleaned aligned clusters"  # folder to save cleaned CSVs
+
+if (!dir.exists(output_folder)) dir.create(output_folder)
+
+aln_files <- list.files(input_folder, pattern = "\\.aln$", full.names = TRUE)
+
+# ---- Process each file ----
+for (input_file in aln_files) {
+  
+  output_file <- file.path(output_folder, 
+                           paste0(tools::file_path_sans_ext(basename(input_file)), "_cleaned.csv"))
+
+  total_lines <- countLines(input_file)
+  
+  results <- list()
+  current_query <- NA
+  
+  con <- file(input_file, "r")
+  pb <- txtProgressBar(min = 0, max = total_lines, style = 3)
+  
+  line_num <- 0
+  while (TRUE) {
+    line <- readLines(con, n = 1, warn = FALSE)
+    if (length(line) == 0) break  # EOF
+    line_num <- line_num + 1
+    
+    line <- str_trim(line)
+    
+    if (startsWith(line, "Query")) {
+      current_query <- str_trim(sub("\\s*\\[.*", "", str_replace(line, "^Query\\s+>", "")))
+      
+    } else if (grepl("^\\d+%\\s+", line)) {
+
+      parts <- str_split_fixed(line, "\\s+", 3)
+      
+      if (nchar(parts[3]) > 0) {
+        target_clean <- str_trim(sub("\\s*\\[.*", "", parts[3]))
+        
+        results[[length(results) + 1]] <- list(
+          Query_ID = current_query,
+          PercentId = parts[1],
+          TLen = parts[2],
+          Target = target_clean
+        )
+      }
+    }
+    
+    if (line_num %% 1000 == 0 || line_num == total_lines) {
+      setTxtProgressBar(pb, line_num)
+    }
+  }
+  
+  close(con)
+  close(pb)
+  
+  # Bind into data.table
+  df <- rbindlist(results)
+  
+  fwrite(df, output_file)
+  cat("\nProcessed file saved to:", output_file, "\n")
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+From here the IDs can be manually extracted from each member of the cluster and the OG sequence pulled up using the bash script that Artem has sent. 
+(see the slack in the rotation channel if I haven't put it up here). Then I run the sequences through BLASTp / BLASTn / BLASTx 
+
+I also want to pull them up in Cytoscape, which requires the conversion of the percent ID column to an integer rather than a string to enable minimal spanning tree generation. 
+The percent ID is set as an edge parameter. 
+
+Aaaaaaand unfortunately one of my most promising clusters which pulled up no hits in BLASTp is pulling up crazy hits in BLASTn as mouse PKC... ironic given that was half my project with bramson. 
+Cluster 2558 is probably out (PKCd all the way down with this one) 
+
+Cluster 15464 has a few really large nodes:
+SRR5621565_81124 - hits a predicted pika CDYL protein
+SRR19033253_106960 - pulls up hits against mouse Cdyl mRNA
+ERR497219_8200 - same as above
+SRR10052460_108403 - broad range of CDYL hits, mostly from chickens
+ERR4152874_13665 - not large but an outlier. Hits for human / pan-troglodyte CDYL
+
+looks like it's a bust
+
+Cluster 339 is weird. It's got 3 sub clusters that are loosely connected, and several very large nodes. 
+
+DRR182866_31571 - mouse
+ERR1148441_16490 - mouse
+ERR1826412_2108 - mouse
+
+Kind of dissapointed, but I'll come back to it later. 
+
+Cluster 338 is also a weird one. got some unconnected clusters here. 
+
+ERR2938934_33994 - mouse 
+DRR107535_35897 - more mouse
+ERR1825727_91 - mouse again
+DRR001243_440902 - you guessed it, mouse.
+
+Bust
+
+Cluster 4566 has some isolated and poorly connected sub clusters. 
+
+ERR10089676_108757 - mix of human satellite DNA and some other species like N. fowlerie. Lots of alpha satellites / viruses. probably worth a second look
+SRR11054471_155 - one Blastn hit. Alpha satellite. we found a virus LOL
+ERR9362261_23967 - Also pulls up hits for N.fowleri and pan-troglodytes
+SRR11751163_2232 (this one is interesting)
+                 - No hit in BLASTn. 
+                 - some mediocre quality hits in BLASTp mostly against pathogenic bacteria 
+                   (AA: EFFCLVEYEEISFLTKVLKMFEYLFVDFINRVFFNCFMKRKVEFCELNVYIIKEFLRIILFSFYRKIFFILLLILKRLKFLLLILKRLKFLFVNFIKRVF)
+                 - BLASTx pulls up hits against mostly pathogenic bacteria as well. 
+
+SRA that this was derived from "SRR11751163","Bisulfite-Seq","Mus musculus","10090","species","Mus musculus"
+  - mouse but it's popping up in bacteria????
+
+Artem's excited about this one - some advice from him: 
+
+2 types of false positives: Inocles (DNA) and concatenomers (repeats in the sequence that appear circular to the assembler)
+
+be on the lookout for data coming from EST libraries - if it's from these and not popping up elsewhere, we've probably got something on our hands
+
+Cluster 5712
+
+all mouse. PKCd strikes again. 
+
+Cluster 6267
+
+DRR270491_806663 - human hits for GPRIN3 (predicted)
+ERR10495030_971840 - same as above
+
+Cluster 7196 (full of ubiquitin)
+
+DRR015411_65447 - UBC1 of various species including human
+DRR132103_84 - UBB of various species
+DRR032321_198878 - UBC / polyUB of various species
+
+Cluster 16515: 
+
+ERR192361_4403965 - no hits in BLASTn
+                  - single low confidence hit against truncated profillagrin in BLASTx 
+                  - no hits in BLASTp 
+                   (AA: FIGSLESVRGTSSGFFEVSTVSDIIMSKNIARRSSIFKNIARRSSIFSISTVISTNSNAGISISISISMSTNSSSSVIGSSSLVGEDIREFIRNREGIALGFGVLIKGIVFFVIRSIFLGLA)
+            - The other 2 nodes in the cluster also pull up no hits (ERR1418165_424205, ERR1418180_51414)
+DRR138929_861 - mouse fillagrin (along with the rest of the nodes)
+
+Cluster 17900
+
+Oops, all mice!
+
+Cluster 29687
+
+Also all mice!
+
+Cluster 56030
+
+ERR1354931_7210 - mouse
+ERR1122291_4892 - mouse but an LTR
+ERR4285568_30832 - mouse
+rest is mouse too
+
+Cluster 12870
+
+DRR333383_1105271 - ubiquitin from different species
+DRR017575_427 - more UB
+
+
+
+
+
+
+
