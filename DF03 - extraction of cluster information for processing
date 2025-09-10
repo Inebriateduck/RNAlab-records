@@ -2,7 +2,7 @@ I have an excessively large amount of clusters (about 4 million) from the previo
 member count clusters are junk, so I need to filter them out during future processing. Therefore I'll be stratifying the clusters based on 
 the number of members in each cluster, and will be focusing on the top 500 clusters by size. 
 
--------- Splitting of clusters by size to yield the top 500 ------------------------------------------------------------------------------
+-------- C_splitter.R (by top 500) ------------------------------------------------------------------------------
 
 library(data.table)
 
@@ -39,7 +39,7 @@ for (bin_name in unique(clusters$Bin)) {
   cat("Written bin", bin_name, "to", output_file, "with", nrow(subset_uc), "rows\n")
 }
 
------- Data cleaning for use in alignment (R): ----------------------------------------------------------
+------ C_extractor.R: ----------------------------------------------------------
 
 library(data.table)
 library(stringr)
@@ -92,7 +92,7 @@ Then download the resulting files... duh
 
 Next step is to run clean it so it can be inputted into cytoscape because the aligner output is NOT cytoscape friendly... at all...
 
--------- R script: ----------------------------------------------------------------------------------------------------------------
+-------- AC_clean.R: ----------------------------------------------------------------------------------------------------------------
 
 library(data.table)
 library(stringr)
