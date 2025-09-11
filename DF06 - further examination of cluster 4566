@@ -1,0 +1,57 @@
+Cluster 4566 had a werid sub cluster that had a centroid with weak hits across the board in a variety of eukaryotic and prokaryotic species. Additional members in the cluster (not sub cluster) 
+pull up hits as alpha satellites, but RNA structuring of select centroids doesn't really show a similarity between the 2. I want to further examine the sub cluster and see what's going on with all the 
+members in it. 
+
+---------------- cluster members -----------------
+SRR10415521_217080
+SRR10909627_3420
+SRR11751211_19354
+SRR11751163_223
+ERR9615966_560
+SRR10133677_7238
+ERR697190_28677
+SRR11767491_20901
+ERR758675_99744
+SRR9077896_7900
+SRR11054923_163
+SRR11054491_181
+SRR11751969_184
+
+----- Extracting contigs for BLAST -----------------
+(in BASH)
+ ./Wrapper.sh "Book3.tsv"
+
+had to convert the file to a tsv, that was fun...
+
+-------- BLASTn results ----------------------------
+
+SRR10415521_217080 - no hits on BLASTn
+SRR10909627_3420 - no hits on BLASTn
+SRR11751211_19354 - no hits on BLASTn
+SRR11751163_223 - no hits on BLASTn
+ERR9615966_560 - no hits on BLASTn
+SRR10133677_7238 - no hits on BLASTn
+ERR697190_28677 - no hits on BLASTn
+SRR11767491_20901 - no hits on BLASTn
+ERR758675_99744 - no hits on BLASTn
+SRR9077896_7900 - no hits on BLASTn
+SRR11054923_163 - no hits on BLASTn
+SRR11054491_181 - no hits on BLASTn
+
+-------- BLASTx results ----------------------------
+
+SRR10415521_217080 - Hits for mostly bacteria
+SRR10909627_3420 - Hits for mostly bacteria
+SRR11751211_19354 - Hits for mostly bacteria
+SRR11751163_223 - no hits on BLASTx (probably due to size)
+ERR9615966_560 - Hits for mostly bacteria
+SRR10133677_7238 - Hits for mostly bacteria
+ERR697190_28677 - Hits for mostly bacteria
+SRR11767491_20901 - Hits for mostly bacteria
+ERR758675_99744 - Hits for mostly bacteria
+SRR9077896_7900 - Hits for mostly bacteria
+SRR11054923_163 - Hits for mostly bacteria
+SRR11054491_181 - Hits for mostly bacteria
+
+Same suite of hits across the board, enterobacteria, proteobacteria, brown algea, small amount of malaria and mycoplsama mixed in. Interesting. 
+
