@@ -84,9 +84,17 @@ for (afile in alignment_files) {
     }
   }
 
--------- Alignment script: -------------------------------------------------------------------------------------------------------
+-------- Alignment script for a whole directory: -------------------------------------------------------------------------------------------------------
 
--allpairs_global cluster_16515.fasta -id 0.75 -alnout 16515_ID75.aln
+#!/bin/bash
+INPUT_DIR="/home/ec2-user/400-499"
+OUTPUT_DIR="/home/ec2-user/400_aln"
+
+mkdir -p "$OUTPUT_DIR"
+
+for f in "$INPUT_DIR"/*.fasta; do
+    base=$(basename "$f" .fasta)
+    usearch -allpairs_global "$f" -id 0.75 -alnout "$OUTPUT_DIR/${base}_ID75.aln"
 
 Then download the resulting files... duh
 
