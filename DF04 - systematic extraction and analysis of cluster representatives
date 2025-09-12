@@ -1,0 +1,111 @@
+I'm trying to find a way to more rapidly sweep through the clusters that we have - the current technique of mapping the clusters into cytoscape is way too time consuming. Here's what I'm thinking: 
+- we have the file describing the centroids that was outputted by Usearch
+- we also have many files describing each cluster, however these do not contain centroids (i think)
+
+What I'm thinking is that we sweep through each folder (ie 400-499, 300-399 etc...), pulling a the corresponding centroids for each and dumping them into a csv file with an attached cluster number 
+which corresponds to the file in which a hit was found. Then we extract the accession numbers and pull the corresponding nucleotides (which are also dumped into a file and run against Blastn for possible hits. 
+Significant hits will be discarded. 
+
+  - for DBS to run it against, I'll probably start with the specialized dbEST for looking at ESTs like Artem recommended, and then move on to a general BLASTn search. 
+
+Once I've identified our weak / non hits I'll back reference the centroids to their clusters and map them in cytoscape. 
+
+Installing blast+: 
+
+wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.17.0+-x64-linux.tar.gz
+
+tar -xzf ncbi-blast-2.17.0+-x64-linux.tar.gz
+sudo mv ncbi-blast-2.17.0+ /usr/local/ncbi-blast+
+echo 'export PATH=$PATH:/usr/local/ncbi-blast+/bin' >> ~/.bashrc
+source ~/.bashrc
+
+blastn -version
+blastn: 2.17.0+
+ Package: blast 2.17.0, build Jul  1 2025 08:59:18
+
+Uploading fasta files to shining diamond (EC2 instance)
+
+scp -i "/Users/awsms1/RNA lab/EC2 big boi/Powerlifter.pem" -r "/Users/awsms1/RNA lab/extracted clusters" ec2-user@3.145.211.228:/home/ec2-user/
+
+Then I cross reference my clusters file against my centroids fasta file to isolate the centroids and link the AA sequence and SRA identifier of the centroid to the cluster number and size. 
+This script was a bitch to make and test (thanks chat GPT!). 
+
+---------- Fast_UC_linker.R -------------------
+
+library(data.table)
+library(Biostrings)
+
+
+uc_file <- "/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/circ_clustersID35.uc"
+fasta_file <- "/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/circ_centroidsID35.fasta"
+output_file <- "/Users/awsms1/RNA lab/EC2 big boi/ID35 clustering/centroids_with_bins.csv"
+
+
+fasta <- readAAStringSet(fasta_file)
+header_dt <- data.table(
+  SeqID = sub("^>", "", names(fasta)),       # remove leading ">"
+  Sequence = as.character(fasta)
+)
+
+header_dt[, CoreID := sub(" .*", "", SeqID)]
+
+header_dt[, c("Accession", "CircleInfo") := tstrsplit(CoreID, "_circle_", fixed=TRUE)]
+
+
+uc <- fread(uc_file, sep="\t", header=FALSE, data.table=TRUE)
+
+# Assign column names based on your UC format
+colnames(uc) <- c("Type", "Cluster", "Col3", "Col4", "Col5",
+                  "Col6", "Col7", "Col8", "SeqID", "Col10")
+
+
+centroids_uc <- uc[Type == "S", .(Cluster, SeqID)]
+# Extract CoreID (before first space)
+centroids_uc[, CoreID := sub(" .*", "", SeqID)]
+
+
+cluster_sizes <- uc[, .N, by=Cluster]
+setnames(cluster_sizes, "N", "Size")
+
+
+centroids_uc <- merge(centroids_uc, cluster_sizes, by="Cluster", all.x=TRUE)
+
+
+final_dt <- merge(header_dt, centroids_uc, by="CoreID", all.x=TRUE)
+
+
+final_dt[, SizeBin := fifelse(Size >= 500, "500+",
+                              fifelse(Size >= 400, "400-499",
+                                      fifelse(Size >= 300, "300-399",
+                                              fifelse(Size >= 200, "200-299",
+                                                      fifelse(Size >= 100, "100-199",
+                                                              "<100")))))]
+
+
+fwrite(final_dt[, .(CoreID, Cluster, Size, Accession, CircleInfo, Sequence, SizeBin)], output_file)
+cat("Combined file saved to", output_file, "\n")
+
+
+size_bins <- unique(final_dt$SizeBin)
+
+for (bin in size_bins) {
+  bin_dt <- final_dt[SizeBin == bin]
+  bin_file <- sub("\\.csv$", paste0("_", bin, ".csv"), output_file)
+  fwrite(bin_dt[, .(CoreID, Cluster, Size, Accession, CircleInfo, Sequence, SizeBin)], bin_file)
+  cat("Saved", nrow(bin_dt), "centroids to", bin_file, "\n")
+}
+
+--------------------------------------------------------------------------------------------------
+
+Next I need to extract and link the nt sequences from serratus using the SRA identifiers and link them to the centroids so I can hit them with BLASTn / x
+
+ended up making a bash wrapper that encompasses the code artem gave me to automate mass extraction from the previous files. It spits out the SRA and the accompanying nt sequence
+
+Running it: ./wrapper.sh -i linked_centroids_500+.tsv linked_centroids_400-499.tsv ...etc 
+
+the wrapper spits out the extracted files as a fasta with the header and sequence. (now I just need to figure out how to BLAST them en masse). 
+
+Turns out you might be able to BLAST them en masse by just sticking them in the same file. 
+
+See DF05 for workhorse setup.
+
