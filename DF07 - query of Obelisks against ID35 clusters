@@ -1,0 +1,103 @@
+Artem suggested I query our obelisk db against my clusters to see where they appear as a sanity check (kinda need one rn ngl). 
+
+cenDB is my database of centroids that contains the fasta seqs and metadata like cluster number and size, made using the Diamond DB generator script
+
+------- Database  and setup -----------------------------------------------------------------------------
+Using Shining Diamond (my EC instance running diamond) and a file of our centroids (with ORFS) as a fasta
+
+scp -i "/Users/awsms1/RNA lab/EC2_big_boi/Powerlifter.pem" "/Users/awsms1/RNA lab/EC2_big_boi/ID35_clustering/cenDB.fasta" ec2-user@18.217.144.134:~
+
+diamond makedb --in cenDB.fasta --db cenDB
+
+mkdir -p ~/Obelisk/results
+
+(Obelisk DB was already on my PC). 
+
+-------------- Running ---------------------------------------
+diamond blastp \
+  --db cenDB.dmnd \
+  --query Obelisk_DB_v1.1_Logan_Run_2_Oblin1.fa \
+  --out Oblin1_results.m8 \
+  --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore stitle \
+  --max-target-seqs 5 \
+  --evalue 1e-5 \
+  --threads 72
+
+
+Finished suspiciously fast LOL
+
+grabbed the output: 
+
+scp -i "/Users/awsms1/RNA lab/EC2 big boi/Powerlifter.pem" \
+    ec2-user@18.216.15.130:/home/ec2-user/Oblin1_results.m8 \
+    "/Users/awsms1/RNA lab/"
+
+... output is real nice. tons of hits at an E cutoff of -5
+
+Grabbed the Hep D antigen dbs from Artem (RDRP1 and RDRP5), and merged them into 1 after uploading them to Shining Diamond 
+
+cat rdrp5.fa rdrp1.fa > DAGs.fa
+
+Same shit: 
+./diamond blastp \
+  --db cenDB.dmnd \
+  --query DAGs.fa \
+  --out DAGs.m8 \
+  --outfmt 6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore stitle \
+  --max-target-seqs 5 \
+  --evalue 1e-5 \
+  --threads 72
+
+lots of hits here too. nice. 
+
+-------------- Extraction of data from m8 files (M8 extractor) ------------------------------------
+
+# Load required libraries
+library(data.table)
+library(stringr)
+
+# ----- Step 1: Read DIAMOND output -----
+diamond_file <- "/Users/awsms1/RNA lab/Centroid obelisk hits/Oblin1_results.m8"
+diamond_dt <- fread(diamond_file, header = FALSE, sep = "\t")
+
+# ----- Step 2: Name columns -----
+colnames(diamond_dt) <- c(
+  "QueryID", "ClusterID", "PercIdentity", "AlignLength", "Mismatches", 
+  "GapOpens", "QStart", "QEnd", "SStart", "SEnd", "Evalue", "BitScore", "Extra"
+)
+
+# ----- Step 3: Extract cluster size from ClusterID -----
+diamond_dt[, ClusterSize := as.integer(str_extract(ClusterID, "(?<=size=)\\d+"))]
+
+# ----- Step 4: Extract SRA accession from ClusterID -----
+diamond_dt[, SRA := str_extract(ClusterID, "[A-Z]{3}\\d+_\\d+")]
+
+# ----- Step 5: Convert numeric cluster ID for sorting -----
+diamond_dt[, cluster := as.numeric(str_extract(ClusterID, "^\\d+"))]
+
+# ----- Step 6: Remove unnecessary columns -----
+diamond_dt[, c("ClusterID", "Extra") := NULL]
+
+# ----- Step 7: Sort by cluster and BitScore -----
+setorder(diamond_dt, cluster, -BitScore)
+
+# ----- Step 8: Save sorted output -----
+fwrite(
+  diamond_dt,
+  "/Users/awsms1/RNA lab/Centroid obelisk hits/Oblin_Hits_by_cluster.tsv",
+  sep = "\t"
+)
+
+# ----- Step 9: Select top hit per cluster -----
+top_hits <- diamond_dt[, .SD[1], by = cluster]
+
+# Save top hits
+fwrite(
+  top_hits,
+  "/Users/awsms1/RNA lab/Centroid obelisk hits/Oblin_top_hits_per_cluster.tsv",
+  sep = "\t"
+)
+
+
+
+
