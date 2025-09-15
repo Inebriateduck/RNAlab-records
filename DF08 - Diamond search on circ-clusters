@@ -1,0 +1,67 @@
+Here I'll be running a diamond search of all the centroids from my ID35 clustering against the nr database. 
+
+---------------- conversion of all linked centroids to a fasta file --------------------------
+(this one is python)
+
+import pandas as pd
+
+# ----- Input/Output -----
+input_tsv = "/Users/awsms1/RNA lab/Linked centroids/all_linked_centroids.tsv"
+output_fasta = "/Users/awsms1/RNA lab/Linked centroids/all_linked_centroids.fa"
+
+# Read the TSV
+df = pd.read_csv(input_tsv, sep="\t")
+
+# Open output FASTA
+with open(output_fasta, "w") as fasta:
+    for _, row in df.iterrows():
+        header = f">{row['Cluster']}|{row['Accession']}|size={row['Size']}"
+        sequence = row["Sequence"]
+        fasta.write(f"{header}\n{sequence}\n")
+
+print(f"FASTA written to {output_fasta}")
+
+---------------- Diamond output --------------------------------------------
+
+Diamond output when running all_linked_centroids.fa against nr.db
+Total time = 9156.69s
+Reported 1817523 pairwise alignments, 1817523 HSPs.
+477956 queries aligned.
+
+------------- Processing output against input to remove diamond hits from the input tsv -------------
+
+library(data.table)
+
+# ---- Input/Output paths ----
+input_tsv <- "/Users/awsms1/RNA lab/Input data/Linked centroids/all_linked_centroids.tsv"
+diamond_file <- "/Users/awsms1/RNA lab/Diamond hits/Hits against NR/centroid_hits.m8"
+non_hits_output <- "/Users/awsms1/RNA lab/Diamond hits/Hits against NR/non_hit_centroids.tsv"
+
+# ---- Ensure output directory exists ----
+dir.create(dirname(non_hits_output), recursive = TRUE, showWarnings = FALSE)
+
+# ---- Read input files ----
+input_dt <- fread(input_tsv, sep="\t", header=TRUE)
+diamond_dt <- fread(diamond_file, sep="\t", header=FALSE)
+
+# ---- Extract cluster and accession from DIAMOND V1 ----
+diamond_dt[, Cluster := as.integer(sub("^([0-9]+)\\|.*$", "\\1", V1))]
+diamond_dt[, Accession := sub("^[0-9]+\\|([^|]+)\\|.*$", "\\1", V1)]
+
+# ---- Remove TSV rows that match both Accession and Cluster from DIAMOND ----
+non_hits_dt <- input_dt[! (Accession %in% diamond_dt$Accession & Cluster %in% diamond_dt$Cluster)]
+
+# ---- Save non-hit centroids ----
+fwrite(non_hits_dt, non_hits_output, sep="\t")
+
+So maybe I'm a little stupid, but I don't know how the accession number can pull up a single nt sequence but has multiple circles linked to each. since each cirlce is for an ORF, is it just different 
+variations of the ORFs? If this is true, then it means that the non-hit sequences in diamond could be their own thing, even if they do successfully pull up a hit in BLASTn... I'm gonna need to talk to 
+Artem about how it works and then adjust the input parameters for my BLASTn search to account for it. 
+
+While we're at it:
+
+----------- Hit and non hit rates -------------------------
+Number of non hits (rows in non_hits tsv file): 3667834 
+number of queries that hit: 477956
+Total rows in input TSV: 4145790 
+Numbers check out... only 400k hits is a little surprising, but lets see what happens when I run it through Blast N
