@@ -1,0 +1,26 @@
+Had a convo with Artem, I guess that running 4.5 million reads to get the contigs and then hitting that with Blastn is "non-tractable" (yeah honestly I shoulda seen that coming). 
+New plan now. Instead what I'm going to do is I'm going to get the contigs from the file that Rayan has posted in the past in the slack, filter out the Diamond hits from it, chunk it into sets of 
+300k conitgs and the slam it through infernal (contig block size is flexible). 
+
+---------------- Prepping files ----------------------------------------------------------
+
+Rayan's file is in .zst format and is fucking huge even when compressed, so decompressing it isn't an option. I made a python script to extract the non-hits from the circle contigs without unzipping it.
+This is gonna make the EC2 instance scream...
+
+Gargantuan output... 
+
+Fucked up big time. I should have just piped the information in the first place using grep... 
+
+Example that I ran using my Diamond hits to look for SRR hits that were in saccharomycetes 
+
+zstdcat metadata.zst \
+  | grep -F -f nr.hit.SRRs.stripped.tsv \
+  | grep "Saccharomyces" > Saccharomyces_hits.tsv
+
+worked like a charm, done in about 5 seconds compared to my shitty python script.
+
+Gonna try using one on non hitting centroids to grab nt sequences corresponding to each circ. 
+
+Sidenote while thats runnning, got a project update from Artem. We're gonna try to link any circles in Rayans DB to the logan DB via their SRR. this is gonna be fun... 
+
+see DF10 for more information
