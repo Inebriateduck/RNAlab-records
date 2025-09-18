@@ -75,7 +75,7 @@ Huge hits on these. Output file containing both C.elegans and yeast is called ci
 
 
 
----------- Fuck up 1 ------------------------------
+---------- Fuck up and correction ------------------------------
 
 So uh. That script artem gave me may have slightly botched everything and spat out the G column with 2 different data points in it instead of 1, and none in the Y column. This has been causing 
 issues when I try to extract the data... 
@@ -157,6 +157,112 @@ I then used an R script to break apart the original Uclust file into files with 
 hit for yeast or worms, the entire cluster was pulled. Side note, while I was glancing through the data I noted cluster 10044. Lots of non-yeast hits clustered around a yeast hit. need to mark it as
 high priority. 
 
+-------- Yeast_grabber.R (works on all annotated rows though) -------------------------------------
+
+library(data.table)
+library(readr)
+
+process_uclust_clusters_dt <- function(input_file,
+                                       output_prefix = "output_clusters",
+                                       has_header = FALSE,
+                                       threads = 4) {
+  # Set number of threads for data.table
+  data.table::setDTthreads(threads)
+  message("Using ", data.table::getDTthreads(), " threads for data.table operations.")
+  
+  message("Reading TSV file: ", input_file)
+  u <- fread(input_file, sep = "\t", header = has_header, fill = TRUE, quote = "", data.table = TRUE)
+  message("Detected ", ncol(u), " columns and ", nrow(u), " rows")
+  
+  expected <- c("record_type", "cluster_number", "sequence_length", "percent_identity",
+                "strand", "field6", "field7", "alignment", "query_label", "target_label",
+                "Saccharomyces", "Caenorhabditis_elegans")
+  
+  if (!has_header) {
+    n_assign <- min(length(expected), ncol(u))
+    setnames(u, 1:n_assign, expected[1:n_assign])
+  }
+  
+  if (!("cluster_number" %in% names(u))) {
+    if (ncol(u) >= 2) {
+      setnames(u, 1:2, c("record_type", "cluster_number"))
+      message("Assigned 'record_type' and 'cluster_number' to first two columns.")
+    } else {
+      stop("Cannot find cluster_number column (file has < 2 columns).")
+    }
+  }
+  
+  # Ensure numeric columns
+  u[, Saccharomyces := suppressWarnings(as.numeric(Saccharomyces))]
+  u[, Caenorhabditis_elegans := suppressWarnings(as.numeric(Caenorhabditis_elegans))]
+  
+  # Filter mapped records
+  all_mapped <- u[record_type %in% c("S", "H", "C")]
+  all_mapped[, cluster_number := as.character(cluster_number)]
+  
+  # Summarize clusters using data.table aggregation
+  cluster_classification <- all_mapped[, .(
+    has_yeast = any(Saccharomyces == 1, na.rm = TRUE),
+    has_celegans = any(Caenorhabditis_elegans == 1, na.rm = TRUE),
+    sequence_count = uniqueN(if ("query_label" %in% names(.SD)) query_label else .I)
+  ), by = cluster_number]
+  
+  # Add classification column
+  cluster_classification[, classification := fifelse(has_yeast & has_celegans, "both",
+                                                     fifelse(has_yeast & !has_celegans, "Saccharomyces_only",
+                                                             fifelse(!has_yeast & has_celegans, "Caenorhabditis_elegans_only",
+                                                                     "neither")))]
+  
+  # Summary
+  classification_summary <- cluster_classification[, .(
+    num_clusters = .N,
+    total_sequences = sum(sequence_count)
+  ), by = classification][order(classification)]
+  
+  message("Cluster classification summary:")
+  print(classification_summary)
+  
+  # Merge classification back to records
+  final_data <- merge(all_mapped, cluster_classification[, .(cluster_number, classification)], 
+                      by = "cluster_number", all.x = TRUE)
+  
+  out_dir <- dirname(input_file)
+  if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+  
+  classes <- c("both", "Saccharomyces_only", "Caenorhabditis_elegans_only", "neither")
+  output_files <- character()
+  
+  for (cl in classes) {
+    out_file <- file.path(out_dir, paste0(output_prefix, "_", cl, ".tsv"))
+    class_data <- final_data[classification == cl, !"classification", with = FALSE]
+    fwrite(class_data, out_file, sep = "\t")
+    message("Wrote ", nrow(class_data), " rows (", uniqueN(class_data$cluster_number), " clusters) to ", out_file)
+    output_files <- c(output_files, out_file)
+  }
+  
+  # Summary file
+  summary_file <- file.path(out_dir, paste0(output_prefix, "_summary.tsv"))
+  fwrite(classification_summary, summary_file, sep = "\t")
+  message("Wrote summary to: ", summary_file)
+  
+  message("Record-level hit counts: Saccharomyces = ", sum(u$Saccharomyces == 1, na.rm = TRUE),
+          ", Caenorhabditis elegans = ", sum(u$Caenorhabditis_elegans == 1, na.rm = TRUE))
+  
+  return(list(
+    summary = classification_summary,
+    output_files = output_files,
+    total_clusters = nrow(cluster_classification),
+    total_sequences = nrow(final_data)
+  ))
+}
+
+# Example usage
+summary <- process_uclust_clusters_dt("/Users/awsms1/RNA lab/ID35_clutsters.tsv",
+                                      output_prefix = "output_clusters",
+                                      has_header = FALSE,
+                                      threads = 6)
+
+
 Output of the R script 
 
 |==================================================|
@@ -174,6 +280,11 @@ Second <int> is what we care about.
 
 I think the "both" output is a little redundant since I doubt we would have a similar virus / viroid in both species given how distant they are, but I'm keeping it just in case. 
 
-Time to start analysing (see DF11). 
+-------- Analysis of clusters ------------------------- 
 
+Aligning this many clusters is going to be a huge pain in my ass. 17k clusters with 51k unique reads is absolutely batshit insane. This bit is likely going to take all night, even when 
+running on a z1d.6xlarge which is optimized for single threading. Even splitting them with C.splitter is going to be a pain in my ass. They don't even have ORFs linked to them atm LOL. 
+
+Instead I'm going to graph them in the way that Artem suggested with a dot plot (X axis is cluster size, Y axis is % of the cluster that's from the organism). 
+Then, I'll zoom in on the clusters high in both and align just them. See DF11 for more details. 
 
