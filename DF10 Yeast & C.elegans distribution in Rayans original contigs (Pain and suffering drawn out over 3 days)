@@ -1,0 +1,179 @@
+Here I'm going to be attempting to link the circles file that Rayan sent me to the serratus / logan DB. More specifically, Artem wants me to determine which SRRs correspond to a yeast sample and which dont. Basically, 
+I'm adding a T/F value to each SRR. How am I going to do this? no clue... but I know where to start. 
+
+1. I need to extract the headers from the file that Rayan sent me. They're gonna be broken down into a table in the follwing manner:
+| SRR | CONTIG | ka | g | y | 
+
+the OG file is structured like: 
+
+>DRR000001_40_circle_40 ka:f:78.719 L:-:40:- L:+:40:+
+CCACAACCGTACTGCCGATTCGCTTCCTCAACGATTAATTTATTATGATAAGCAATTTTTAAAGACCTACGCCACGCACACATCGGGCATAACCTCACTTTACAAAACTGAGCTTGATACAACTTTAATTTGCCCGTCTCCGGGTCTCGTTTAAACGAAAGACATTCCGCACAACTGCACAATTTCTCAGCTTTTTTGCCATAGTAAGGTA
+
+Keeping the basic zst decomp command here for reference 
+
+zstd -dc file.fa.zst | less 
+                        ^
+                        |
+                    this part can be modified 
+
+So basically what I want to do is to use an AWK script that artem sent to rip out the headers, run them against the SRR that Jess sent then remake a table with the T/F value alongside each one.
+'''
+
+awk 'BEGIN{
+  OFS="\t";
+  print "SRR","CONTIG","KA","G","Y"
+}
+{
+  s = $0
+
+  # SRR: from char 2 (after ">") up to first "_"
+  p1 = index(s, "_")
+  srr = (p1>0) ? substr(s, 2, p1-2) : ""
+
+  # CONTIG: number after "circle_"
+  cp = index(s, "circle_")
+  if (cp>0) {
+    rest = substr(s, cp + 7)
+    split(rest, a, /[^0-9]/)
+    contig = a[1]
+  } else contig = ""
+
+  # KA: number after "ka:f:"
+  kp = index(s, "ka:f:")
+  if (kp>0) {
+    restk = substr(s, kp + 5)
+    split(restk, b, /[^0-9.]/)
+    ka = b[1]
+  } else ka = ""
+
+  # G: from first "L:" (inclusive) to end of line
+  gp = index(s, "L:")
+  g = (gp>0) ? substr(s, gp) : ""
+
+  print srr, contig, ka, g
+}' input.txt > output.tsv
+'''
+
+--------------------- Update 1 --------------------------------------
+Artem now wants me to add hits against yeast and C. elegans to the tsv file that I generated with that AWK command. 
+
+Script to do it 
+
+awk 'BEGIN {OFS="\t"}
+     NR==FNR {srr[$1]=1; next}
+     FNR==1 {print $1,$2,$3,$4,$5,"yeast"; next}
+     { print $1,$2,$3,$4,$5,($1 in srr ? 1 : 0) }'   <(zstdcat sra_taxid.csv.zst | grep -F "Saccharomyces" | cut -d',' -f1 | tr -d '"')   yeast.circles.tsv > circles.yeast.labeled.tsv
+
+For C.elegans
+
+awk 'BEGIN {OFS="\t"}
+     NR==FNR {srr[$1]=1; next}
+     FNR==1 {print $1,$2,$3,$4,$5,$6, "C. elegans"; next}
+     { print $1,$2,$3,$4,$5,($1 in srr ? 1 : 0) }'   <(zstdcat sra_taxid.csv.zst | grep -F "Caenorhabditis elegans" | cut -d',' -f1 | tr -d '"')   circles.yeast.labeled.tsv > circles.dual.labled.tsv
+
+Huge hits on these. Output file containing both C.elegans and yeast is called circles.dual.labeled.tsv and is stored on The world (instance)
+
+
+
+---------- Fuck up 1 ------------------------------
+
+So uh. That script artem gave me may have slightly botched everything and spat out the G column with 2 different data points in it instead of 1, and none in the Y column. This has been causing 
+issues when I try to extract the data... 
+
+So I'm just gonna rip out the G column lol. 
+
+```
+cut -f1-3 your_file.tsv > output_file.tsv
+```
+
+Done. now I just need to rerun the above scripts targeted to the correct columns. 
+
+Hits look good based on grep-ing of them. Using a script (shotgun.sh) to append the yeast / C elegans hits to my original Uclust output file. 
+
+------- Shotgun.sh script ------------------------------------------------
+
+#!/bin/bash
+
+# Input files
+UNCOMPRESSED=$1
+COMPRESSED=$2
+
+# Create lookup table from compressed file
+TMP_LOOKUP=$(mktemp)
+zstd -d -c "$COMPRESSED" | awk '{print $1 "\t" $4 "\t" $5}' > "$TMP_LOOKUP"
+
+# Process uncompressed file and append organism flags
+awk -v LOOKUP="$TMP_LOOKUP" '
+BEGIN {
+    # Load lookup table into associative array
+    while ((getline line < LOOKUP) > 0) {
+        split(line, parts, "\t")
+        yeast_flags[parts[1]] = parts[2]
+        celeg_flags[parts[1]] = parts[3]
+    }
+    close(LOOKUP)
+}
+{
+    # Extract SRR from column 9 (everything before first "_")
+    split($9, a, "_")
+    srr_id = a[1]
+    
+    # Get flags from lookup, default to 0 if not found
+    yeast_flag = (srr_id in yeast_flags) ? yeast_flags[srr_id] : 0
+    celeg_flag = (srr_id in celeg_flags) ? celeg_flags[srr_id] : 0
+    
+    # Print original line with appended flags
+    print $0 "\t" yeast_flag "\t" celeg_flag
+}
+' "$UNCOMPRESSED"
+
+# Clean up temp file
+rm "$TMP_LOOKUP"
+# run with ./shotgun.sh comparison input > output
+
+--------- Shotgun.sh results -----------------------
+
+Results look good. zstdcat | head of the file pulls up linked hits, and a grep of known yeast hits pulls up the following 
+
+S       240252  80      *       .       *       *       *       DRR342982_4136_circle_4136_3 [882 - 643] (REVERSE SENSE) ka:f:132.393 L:-:4136:+        *       1       0
+S       240253  262     *       .       *       *       *       DRR342982_4136_circle_4136_4 [838 - 53] (REVERSE SENSE) ka:f:132.393 L:-:4136:+         *       1       0
+S       240254  76      *       .       *       *       *       DRR342982_2470_circle_2470_5 [1765 - 1538] (REVERSE SENSE) ka:f:115.066 L:-:2470:+      *       1       0
+
+C.elegans grep pulls up
+
+S       1456583 80      *       .       *       *       *       DRR142764_162086_circle_162086_1 [115 - 354] (ORF crosses the breakpoint) ka:f:6.484 L:-:162086:- L:+:162086:+  *       0      1
+S       1456584 165     *       .       *       *       *       DRR142764_106600_circle_106600_2 [2 - 495] (ORF crosses the breakpoint) ka:f:8.414 L:-:106600:- L:+:106600:+    *       0      1
+S       3406741 165     *       .       *       *       *       DRR142764_106600_circle_106600_1 [1 - 495] (ORF crosses the breakpoint) ka:f:8.414 L:-:106600:- L:+:106600:+    *       0      1
+
+Binary hits work on both. We're in business.
+
+-------- Extracting target data for alignment -------------
+
+Oh yeah we still need to realign and recluster LOL
+
+Converted my .UC file to a tsv for ease of processing (I would like to talk to robert edgar about his choice of delimiters in Uclust....). Polymorph.py was the script used. 
+
+I then used an R script to break apart the original Uclust file into files with yeast hits, C.elegans hits and neither. Grouping was based on cluster number, and if even one cluster member pulled a 
+hit for yeast or worms, the entire cluster was pulled. Side note, while I was glancing through the data I noted cluster 10044. Lots of non-yeast hits clustered around a yeast hit. need to mark it as
+high priority. 
+
+Output of the R script 
+
+|==================================================|
+Detected 12 columns and 11417413 rows
+Processed 4145789 groups out of 4145789. 100% done. Time elapsed: 77s. ETA: 0s.
+Cluster classification summary:
+                classification num_clusters total_sequences
+                        <char>     <Clus. num>      <Seq. num>
+1: Caenorhabditis_elegans_only        15722           37199
+2:          Saccharomyces_only        17006           51755
+3:                        both           70            5058
+4:                     neither      4112991         7177612
+
+Second <int> is what we care about. 
+
+I think the "both" output is a little redundant since I doubt we would have a similar virus / viroid in both species given how distant they are, but I'm keeping it just in case. 
+
+Time to start analysing (see DF11). 
+
+
