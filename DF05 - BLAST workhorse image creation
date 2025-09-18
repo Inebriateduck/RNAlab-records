@@ -1,0 +1,28 @@
+Going to be setting up some images to I can rapidly BLAST or align large amounts of sequences since I'm an impatient fuck. 
+
+Set up the instance in the EC2 control panel, 600 Gb storage, C5.16Xlarge (need that sweet sweet RAM and 27 CPU cores) - this can be swapped to a z1d.6xlarge for single threaded processes. 
+
+Upon boot up, connect via: ssh -i "/Users/awsms1/RNA lab/EC2 big boi/Powerlifter.pem" ec2-user@18.117.114.19
+
+Install the required programs: 
+
+usearch (artems copy):  scp -i "/Users/awsms1/RNA lab/EC2 big boi/Powerlifter.pem" "/Users/awsms1/RNA lab/usearch64" ec2-user@18.117.114.19:~
+                        mkdir -p ~/bin
+                        mv usearch64 ~/bin/usearch
+
+BLAST install: wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.17.0+-x64-linux.tar.gz
+               tar -xzf ncbi-blast-2.17.0+-x64-linux.tar.gz
+               sudo mv ncbi-blast-2.17.0+ /usr/local/ncbi-blast+
+               echo 'export PATH=$PATH:/usr/local/ncbi-blast+/bin' >> ~/.bashrc
+               source ~/.bashrc
+
+BLAST nt db install: sudo yum install perl-CPAN -y
+
+Crack open Screen:   screen -S blastdb_download
+                     update_blastdb.pl --decompress nt
+
+Detach: Ctrl + A, then D
+To reattach: screen -r blastdb_download
+
+
+                     
