@@ -131,6 +131,8 @@ BEGIN {
 rm "$TMP_LOOKUP"
 # run with ./shotgun.sh comparison input > output
 
+#exmaple command: ./shotgun.sh dual.labled.loops.tsv sra_taxid.csv.zst > SRR.linked.loops.tsv
+
 --------- Shotgun.sh results -----------------------
 
 Results look good. zstdcat | head of the file pulls up linked hits, and a grep of known yeast hits pulls up the following 
