@@ -89,7 +89,7 @@ cut -f1-3 your_file.tsv > output_file.tsv
 Done. now I just need to rerun the above scripts targeted to the correct columns. 
 
 Hits look good based on grep-ing of them. Using a script (shotgun.sh) to append the yeast / C elegans hits to my original Uclust output file. 
-
+Note: Shotgun.sh WILL ONLY WORK IF YOU COMPRESS TO A .ZST FILE FIRST. MAKE SURE TO DO THAT.
 ------- Shotgun.sh script ------------------------------------------------
 
 #!/bin/bash
@@ -159,7 +159,7 @@ I then used an R script to break apart the original Uclust file into files with 
 hit for yeast or worms, the entire cluster was pulled. Side note, while I was glancing through the data I noted cluster 10044. Lots of non-yeast hits clustered around a yeast hit. need to mark it as
 high priority. 
 
--------- Yeast_grabber.R (works on all annotated rows though) -------------------------------------
+-------- Worm_grabber.R (works on all annotated rows though) -------------------------------------
 
 library(data.table)
 library(readr)
@@ -294,5 +294,9 @@ Then, I'll zoom in on the clusters high in both and align just them. See DF11 fo
 Side note. I wanted to troll Howard, so now there's a drosophila column too. Gonna do it as a side project... 
 
 Drosophila equivalent of Shotgun.sh is Fly.Shotgun.sh. 
+
+Fly_grabber.R is the Drosophila trageted version of Worm_grabber.R
+
+Uh... I did the Drosophila thing as a bit, but some of those clusters actually look extremely promising... need to come back to them.
 
 
