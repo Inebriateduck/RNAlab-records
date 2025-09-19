@@ -290,3 +290,7 @@ running on a z1d.6xlarge which is optimized for single threading. Even splitting
 Instead I'm going to graph them in the way that Artem suggested with a dot plot (X axis is cluster size, Y axis is % of the cluster that's from the organism). 
 Then, I'll zoom in on the clusters high in both and align just them. See DF11 for more details. 
 
+
+Side note. I wanted to troll Howard, so now there's a drosophila column too. Gonna do it as a side project... 
+
+
