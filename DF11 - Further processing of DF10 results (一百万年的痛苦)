@@ -1,0 +1,303 @@
+Artem wants me to link the results to their conitg and then map them based on size and consistency within the cluster. 
+
+------- Column splitting -------------------------------
+
+gawk -F'\t' 'NR==1 {
+    print $0"\tSRR\tID\tKa"; next
+}
+{
+    run=""; contig=""; ka="";
+    # Extract SRR (SRR, DRR, ERR)
+    if (match($9, /(SRR[0-9]+)/, m)) run=m[1];
+    else if (match($9, /(DRR[0-9]+)/, m)) run=m[1];
+    else if (match($9, /(ERR[0-9]+)/, m)) run=m[1];
+    # Extract ID
+    if (match($9, /_([0-9]+)_/, m)) ID=m[1];
+    # Extract Ka
+    if (match($9, /ka:f:([0-9.]+)/, m)) ka=m[1];
+    print $0"\t"run"\t"ID"\t"ka;
+}' output_clusters_Caenorhabditis_elegans_only.tsv > processed.C.elegans.circles.tsv
+
+
+Works like a charm, now I can easily pull and link the contigs. 
+
+------- Contig extraction ------------------------------------
+First I had to spin off the SRRs into a seperate file using cut in the comand line (f14 is the target column)
+
+cut -f14 ids.tsv > ids.txt
+
+Then I pulled the contigs for each using a parallel grep (sorry Purav, seqkit doesnt handle scaling with regex's that well). 
+
+
+time zstd -dc tester.target.fa.zst | parallel --pipe --block 50M --jobs 20 grep -A1 -f tester.txt > extracted_sequences.fasta
+
+
+Contigs successfully extracted. 
+
+----- Merging of contigs w. UC outputs --------------------------------
+
+Trimmed the outputs using the cut -f command to remove unwanted columns from the tsv files, resulting in X2 files. 
+
+Then used merger.py to merge the files 
+
+python3 merger.py c.elegans.X2.processed.circles.tsv c.elegans.circle.contigs.fa -o merged.output.tsv -v
+
+Results looks good. 
+
+----- Creating data for bowtie2 run -------------------------
+
+trimming and converting to fasta files since bowtie doesnt like tsvs
+
+awk -F'\t' 'NR>1 { 
+    print ">" $1 "|" $7 "|" $4 "\n" $10
+}' input.tsv > output.fasta
+
+note that $7 = saccharomyces and will be changed accordin to the species being processed cause I want to maintain that metadata in the fasta header.
+
+---- Readjusting Aims -------------------------------
+
+also uh, we dont need to first run through bowtie then Diamond. Also apparently Drosophila are raised on yeast agar, so I did a dumb by ruling out cross hits. 
+
+Anyways, the new plan is to redo the sequence addition, run centroids from clusters of over 5 members through both diamond and bowtie2. 
+
+reframing my paramters for sample exclusion resulted in an explosion of rows. now I'm just gonna extract the centroids instead, otherwise the data size is too big . 
+
+------- SRR extraction and linking -----------------
+
+grep "^S" Saccharomyces.X3.processed.circles.tsv | awk -F'\t' '{print $14}' > Saccharomyces.X3.SRRs.txt
+
+Linking done with merger.py as before
+
+used make.fasta
+
+./make_fasta.sh Saccharomyces.X3.circles.w.contigs.tsv clusters_size_le5.fasta clusters_size_gt5.fasta
+
+There's 955 clusters over the size of 5... 
+
+apparently 1 header didnt get a contig. huge pain in my ass. 
+
+awk '/^>/ {
+    if(header && !seq) print "Missing sequence for: " header
+    header=$0; seq=""
+} 
+!/^>/ && NF > 0 {seq=seq $0} 
+END {
+    if(header && !seq) print "Missing sequence for: " header
+}' Saccharomyces.X3.final.fasta
+    removed with: 
+
+    grep -v ">cluster_num_234131 cluster_size_11" Saccharomyces.X3.clusters.gt5.fasta > Saccharomyces.X3.final.fasta
+
+done.
+
+
+------ Processing of cluster data -------------------
+
+  ===== bowtie2 ==========
+  Uploaded the yeast + contig file to a dedicated bt2 instance with a built reference genome (S228c as an RG)
+  mved the file into the bowtie 2 reference genome file for ease of use 
+
+  bowtie2-build reference.fa reference_index
+
+  bowtie2 -p 8 -f -x reference_index -U Saccharomyces.X3.clusters.size.gt5.fasta -S Saccharomyces.X3.BT2.output.sam
+
+  turns out BT2 is EXTREMELY mem intensive so I had to limit my core use... 
+
+  Had to switch instances away from a c4.8xlarge because the RAM just wasnt enough. now operating on a c5.18xlarge
+
+  ===== BT2 output against >5 member yeast clusters =========
+  954 reads; of these:
+  954 (100.00%) were unpaired; of these:
+    856 (89.73%) aligned 0 times
+    71 (7.44%) aligned exactly 1 time
+    27 (2.83%) aligned >1 times
+10.27% overall alignment rate
+
+  pulled cluster IDS
+  awk '/^cluster_num=/ {print $1}' Saccharomyces.X3.BT2.output.sam > cluster_ids.txt
+
+
+  ===== Diamond =========
+  Same as above but running against the yeast db I assembled
+
+  diamond blastx \
+  -d yeastRP.dmnd \
+  -q Saccharomyces.X3.gt5.final.fasta \
+  -o Saccharomyces.X3.gt5.diamond.out \
+  -f 6 \
+  --evalue 1e-5 \
+  --threads 64
+
+Reported 1512 pairwise alignments, 1512 HSPs.
+359 queries aligned.
+
+ --------removal of hits from OG fasta file -----------
+
+Used Diamond.breaker.py for the diamond hits. 
+
+python3 Diamond.breaker.py diamond_hits.txt input.fasta filtered_output.fasta
+
+359 sequences removed...
+
+now for the BT2 hits (transferred the file over first)
+
+Bowtie.breaker.py Saccharomyces.X3.BT2.out.sam Saccharomyces.X3.dmnd.filtered.fasta Saccharomyces.X3.dual.filtered.fasta
+
+570 total sequences remain post dual filtering
+
+------- Running infernal -----------------
+
+cmsearch --tblout ribozyme_hits_corrected.tbl -E 1.0 --nohmm --cpu 40 ribozymes_only.cm Saccharomyces.X3.filtered.fasta
+
+----- results (INFERNAL) -----
+
+#target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+cluster_num=6352     -         AdoCbl-II            RF01689    cm        1       81    12908    12985      +    no    1 0.49   0.0   16.1      0.35 ?   cluster_size=17
+cluster_num=1266036  -         HDV_ribozyme         RF00094    cm        1       89     3571     3638      +    no    1 0.78   1.8   21.2      0.33 ?   cluster_size=10
+cluster_num=49592    -         HDV_ribozyme         RF00094    cm        1       89      150       87      -    no    1 0.69   0.0   19.3      0.77 ?   cluster_size=15
+#
+
+bruh... Hep D... are you fucking kidding me. AND A GODDAMN RIBOSWITCH. TAHTS IT?????
+
+I'm going to sleep lmao. 
+
+I lied. other members of the family are very very interesting. It's likely contamination due to low presence in yeast but still.
+
+#target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+SRR11008303_10507    -         RNaseP_bact_b        RF00011    cm      188      210       94       72      -    no    1 0.70   0.0    4.6      0.15 ?   ka:f:422.813   L:-:10507:-  L:+:10507:+ 
+SRR11008303_10507    -         HDV_ribozyme         RF00094    cm        1       89      122       58      -    no    1 0.71   0.0   21.0    0.0012 !   ka:f:422.813   L:-:10507:-  L:+:10507:+ 
+DRR035433_1667       -         HDV_ribozyme         RF00094    cm        1       89      197      134      -    no    1 0.69   0.0   19.3    0.0026 !   ka:f:5.313   L:-:1667:-  L:+:1667:+ 
+DRR099940_7353       -         HDV_ribozyme         RF00094    cm        1       89       73      136      +    no    1 0.69   0.0   19.3    0.0026 !   ka:f:5.493   L:-:7353:-  L:+:7353:+ 
+SRR24433233_186290   -         HDV_ribozyme         RF00094    cm        1       89      143      206      +    no    1 0.70   0.0   16.2      0.01 ?   ka:f:6.055   L:-:186290:-  L:+:186290:+ 
+DRR286339_519155     -         HDV_ribozyme         RF00094    cm        1       89      145       62      -    no    1 0.68   0.0   14.7      0.02 ?   ka:f:11.401   L:-:519155:-  L:+:519155:+ 
+ERR217509_1135472    -         HDV_ribozyme         RF00094    cm        1       89       64        3      -    no    1 0.66   0.0   14.1     0.026 ?   ka:f:5.222   L:-:1135472:-  L:+:1135472:+ 
+SRR12458254_31418    -         HDV_ribozyme         RF00094    cm        1       89       64        4      -    no    1 0.66   0.0   12.4     0.056 ?   ka:f:10.219   L:-:31418:-  L:+:31418:+ 
+DRR067439_170134     -         HDV_ribozyme         RF00094    cm        1       89      150       86      -    no    1 0.65   0.0   11.3      0.09 ?   ka:f:20.859   L:-:170134:-  L:+:170134:+ 
+DRR160904_9681       -         HDV_ribozyme         RF00094    cm        1       89       84      148      +    no    1 0.65   0.0   11.3      0.09 ?   ka:f:5.599   L:-:9681:-  L:+:9681:+ 
+DRR102306_8485       -         HDV_ribozyme         RF00094    cm        1       89      134       70      -    no    1 0.65   0.0   11.3      0.09 ?   ka:f:16.346   L:-:8485:-  L:+:8485:+ 
+DRR016204_85267      -         HDV_ribozyme         RF00094    cm        1       89      133       69      -    no    1 0.65   0.0   11.3      0.09 ?   ka:f:16.762   L:-:85267:-  L:+:85267:+ 
+DRR286339_519155     -         HDV_ribozyme         RF00094    cm        1       89       53      116      +    no    1 0.66   0.0   10.4      0.13 ?   ka:f:11.401   L:-:519155:-  L:+:519155:+ 
+ERR217509_1135472    -         HDV_ribozyme         RF00094    cm       45       75       16       45      +    no    1 0.70   0.0    8.8      0.27 ?   ka:f:5.222   L:-:1135472:-  L:+:1135472:+ 
+ERR7785056_2204563   -         c-di-GMP-I           RF01051    cm        1       87      203      101      -    no    1 0.60   0.0   12.1     0.016 ?   ka:f:20.080   L:-:2204563:-  L:+:2204563:+ 
+DRR067439_170134     -         c-di-GMP-I           RF01051    cm       17       34      120      103      -    no    1 0.78   0.0    6.1      0.47 ?   ka:f:20.859   L:-:170134:-  L:+:170134:+ 
+DRR035433_1667       -         c-di-GMP-I           RF01051    cm       17       34       77       94      +    no    1 0.78   0.0    6.1      0.47 ?   ka:f:5.313   L:-:1667:-  L:+:1667:+ 
+DRR160904_9681       -         c-di-GMP-I           RF01051    cm       17       34      114      131      +    no    1 0.78   0.0    6.1      0.47 ?   ka:f:5.599   L:-:9681:-  L:+:9681:+ 
+DRR099940_7353       -         c-di-GMP-I           RF01051    cm       17       34      193      176      -    no    1 0.78   0.0    6.1      0.47 ?   ka:f:5.493   L:-:7353:-  L:+:7353:+ 
+DRR102306_8485       -         c-di-GMP-I           RF01051    cm       17       34      104       87      -    no    1 0.78   0.0    6.1      0.47 ?   ka:f:16.346   L:-:8485:-  L:+:8485:+ 
+SRR11008303_10507    -         c-di-GMP-I           RF01051    cm       17       34       92       75      -    no    1 0.78   0.0    6.1      0.47 ?   ka:f:422.813   L:-:10507:-  L:+:10507:+ 
+SRR24433233_186290   -         c-di-GMP-I           RF01051    cm       17       34       82       65      -    no    1 0.78   0.0    6.1      0.47 ?   ka:f:6.055   L:-:186290:-  L:+:186290:+ 
+DRR016204_85267      -         c-di-GMP-I           RF01051    cm       17       34      103       86      -    no    1 0.78   0.0    6.1      0.47 ?   ka:f:16.762   L:-:85267:-  L:+:85267:+ 
+#
+
+
+
+---- results (DIAMOND) -----------------------
+
+Running Saccharomyces.X3.clusters.size.gt5.fasta against the rdrp dataset artem sent me 
+
+[ec2-user@ip-172-31-42-128 ~]$ diamond blastx   -d rdrp_db.dmnd -q Saccharomyces.X3.filtered.final.fasta -f 6   --max-target-seqs 1   --evalue 1e-5   --threads 8
+cluster_num_325280      casp.casp15.a_6b:81_t1189       89.1    55      6       0       27712   27548   1       55      1.52e-22        98.2
+cluster_num_89861       casp.casp15.mceg_complex:36_t1137s7     97.9    236     5       0       109     816     393     628     7.53e-155       478
+
+not many hits
+
+Oblin time
+
+No hits at all. 
+
+
+---- Repeated the above steps with Drosophila (cause we love Howard) -----------------------
+===== Diamond ============
+Reported 266 pairwise alignments, 266 HSPs.
+175 queries aligned.
+
+Diamond.breaker.py
+
+Filtering complete:
+  Sequences kept: 1759
+  Sequences removed: 175
+  Total processed: 1934
+
+RDRP db results
+
+[ec2-user@ip-172-31-42-128 ~]$ cat Drosophila.rdrp.dmnd.out
+cluster_num=634554      psi.psih.monooxygenase:KAF7340547       32.1    162     107     3       998     513     522     680     1.18e-18        89.4
+cluster_num=227920      psi.psik.hydroxytryptamine_kinase:KAF9245911    51.7    290     81      3       2812    1952    3       236     9.02e-77        264
+cluster_num=260897      psi.psik.hydroxytryptamine_kinase:KAF9245911    51.9    287     85      4       2784    1924    3       236     4.06e-76        262
+cluster_num=1350956     psi.psih.monooxygenase:KAF4580763       48.2    141     47      3       599     1012    32      149     8.18e-31        127
+cluster_num=89861       casp.casp15.mceg_complex:36_t1137s7     97.9    236     5       0       109     816     393     628     7.53e-155       478
+cluster_num=1377841     casp.casp15.complex_of_ctedem_and_ctpdi1p_g0scx7:51_t1157s2     24.9    461     233     17      175     1254    1       449     1.06e-30        125
+cluster_num=194731      psi.psih.monooxygenase:KAF4580763       57.5    80      34      0       628     867     19      98      3.48e-22        98.2
+cluster_num=731789      psi.psik.hydroxytryptamine_kinase:KAF9245911    73.2    97      26      0       298     8       3       99      3.26e-37        150
+cluster_num=934400      psi.psid.tryptophan_decarboxylase:TFK39581      67.8    90      29      0       461     192     424     513     7.97e-36        131
+cluster_num=113631      psi.psid.tryptophan_decarboxylase:TFK39581      72.9    85      23      0       74      328     427     511     5.11e-35        129
+cluster_num=429582      casp.casp15.modified_ligase_tom1:59_t1165       41.6    356     204     4       2069    1011    2643    2997    1.64e-76        283
+cluster_num=374143      casp.casp15.complex_of_ctedem_and_ctpdi1p_g0scx7:51_t1157s2     35.2    463     267     13      88      1437    3       445     1.67e-78        263
+cluster_num=384283      casp.casp15.mceg_complex:36_t1137s7     93.1    174     9       1       1       522     467     637     3.71e-110       332
+cluster_num=627242      casp.casp15.mceg_complex:36_t1137s7     94.5    256     14      0       468     1235    388     643     6.81e-162       497
+cluster_num=1612969     psi.psid.tryptophan_decarboxylase:TFK39581      72.9    85      23      0       74      328     427     511     5.11e-35        129
+cluster_num=20458       casp.casp15.mceg_complex:36_t1137s7     99.2    241     2       0       863     141     392     632     3.93e-173       495
+cluster_num=110823      PH2.C15493.N125178:N125178      86.7    30      4       0       1078    1167    1       30      1.15e-06        52.4
+cluster_num=1712445     casp.casp15.g0xnw6:70_t1181     76.6    77      18      0       46171   45941   2       78      1.40e-27        126
+cluster_num=368206      psi.psik.hydroxytryptamine_kinase:KAF9245911    45.9    172     52      3       15      518     102     236     1.38e-36        144
+cluster_num=12424       casp.casp15.src_kinase_domain:88_t1197  27.6    152     103     4       328     777     24      170     9.39e-07        52.8
+cluster_num=1132426     casp.casp15.complex_of_ctedem_and_ctpdi1p_g0scx7:50_t1157s1     33.8    133     60      3       315     1       3       135     9.04e-15        70.1
+cluster_num=60509       psi.psih.monooxygenase:KAF4580763       51.5    136     40      3       170     568     19      131     3.21e-32        126
+
+===== BT2 output =========
+ 
+1934 reads; of these:
+  1934 (100.00%) were unpaired; of these:
+    1457 (75.34%) aligned 0 times
+    146 (7.55%) aligned exactly 1 time
+    331 (17.11%) aligned >1 times
+24.66% overall alignment rate
+
+Filtering FASTA file...
+Filtering complete:
+  Sequences kept: 1751
+  Sequences removed: 8
+  Total processed: 1759
+
+1759 circles remain post filtration. I've got free time so they might as well go through a low sensitivity INFERNAL run. 
+
+------ INFERNAL results ------------
+#target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+cluster_num=646772   -         Hammerhead_1         RF00163    cm        1       45      290      204      -    no    1 0.55   0.0   16.4      0.89 ?   cluster_size=9
+cluster_num=1198649  -         Magnesium            RF00380    cm       32      133     1752     1652      -    no    1 0.29   0.7   19.1      0.12 ?   cluster_size=22
+cluster_num=37629    -         Magnesium            RF00380    cm        1      169     1911     2042      +    no    1 0.40   0.0   16.2      0.67 ?   cluster_size=9
+cluster_num=33409    -         IRES_Cripavirus      RF00458    cm        1      201     2744     2600      -    no    1 0.31   1.0   17.9      0.81 ?   cluster_size=16
+cluster_num=229453   -         c-di-GMP-I           RF01051    cm        1       87     3495     3571      +    no    1 0.65   0.2   19.7      0.26 ?   cluster_size=10
+cluster_num=467113   -         AdoCbl-II            RF01689    cm        1       81      529      591      +    no    1 0.59   0.0   17.2      0.63 ?   cluster_size=22
+cluster_num=598217   -         AdoCbl-II            RF01689    cm        1       81      113       32      -    no    1 0.40   0.0   16.8      0.84 ?   cluster_size=11
+cluster_num=8632     -         Hammerhead_3         RF00008    cm        1       54     1928     1992      +    no    1 0.48   0.0   18.0       0.7 ?   cluster_size=39
+cluster_num=499476   -         HDV_ribozyme         RF00094    cm        1       89    84275    84360      +    no    1 0.42   0.0   27.9     0.071 ?   cluster_size=19
+
+--- C.elegans too since I have dead time ------------------
+
+======= BT2 ==============================
+925 reads; of these:
+  925 (100.00%) were unpaired; of these:
+    507 (54.81%) aligned 0 times
+    163 (17.62%) aligned exactly 1 time
+    255 (27.57%) aligned >1 times
+45.19% overall alignment rate
+
+==== DIAMOND ============================
+
+Reported 101 pairwise alignments, 101 HSPs.
+46 queries aligned.
+
+=== INFERNAL ===========================
+#target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+cluster_num=33440    -         c-di-GMP-I           RF01051    cm        1       87       92      179      +    no    1 0.32   0.1   21.0     0.084 ?   cluster_size=6
+cluster_num=180099   -         c-di-GMP-I           RF01051    cm        1       87      104      191      +    no    1 0.32   0.1   21.0     0.084 ?   cluster_size=7
+cluster_num=227417   -         c-di-GMP-I           RF01051    cm        1       87    39183    39136      -    no    1 0.29   0.0   17.0      0.77 ?   cluster_size=11
+cluster_num=421703   -         c-di-GMP-I           RF01051    cm        1       87    39766    39858      +    no    1 0.53   0.0   16.6      0.98 ?   cluster_size=16
+cluster_num=700422   -         Hammerhead_3         RF00008    cm        1       54   200553   200501      -    no    1 0.45   0.0   29.0   0.00035 !   cluster_size=10
+cluster_num=227417   -         RNaseP_bact_b        RF00011    cm      188      213    27748    27723      -    no    1 0.19   0.0   11.5      0.82 ?   cluster_size=11
+
