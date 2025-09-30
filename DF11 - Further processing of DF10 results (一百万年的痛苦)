@@ -74,7 +74,7 @@ used make.fasta (NOTE TO FUTURE USERS, USE SUBSPLITTER INSEAD, IT IS BETTER)
 
 There's 955 clusters over the size of 5... 
 
-apparently 1 header didnt get a contig. huge pain in my ass. 
+apparently 1 header didnt get a contig. huge pain in my ass. Detected via:
 
 awk '/^>/ {
     if(header && !seq) print "Missing sequence for: " header
@@ -84,7 +84,9 @@ awk '/^>/ {
 END {
     if(header && !seq) print "Missing sequence for: " header
 }' Saccharomyces.X3.final.fasta
-    removed with: 
+
+
+removed with: 
 
     grep -v ">cluster_num_234131 cluster_size_11" Saccharomyces.X3.clusters.gt5.fasta > Saccharomyces.X3.final.fasta
 
