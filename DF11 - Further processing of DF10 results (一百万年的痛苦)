@@ -68,7 +68,7 @@ grep "^S" Saccharomyces.X3.processed.circles.tsv | awk -F'\t' '{print $14}' > Sa
 
 Linking done with merger.py as before
 
-used make.fasta
+used make.fasta (NOTE TO FUTURE USERS, USE SUBSPLITTER INSEAD, IT IS BETTER)
 
 ./make_fasta.sh Saccharomyces.X3.circles.w.contigs.tsv clusters_size_le5.fasta clusters_size_gt5.fasta
 
