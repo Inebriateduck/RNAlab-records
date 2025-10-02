@@ -131,7 +131,7 @@ BEGIN {
 rm "$TMP_LOOKUP"
 # run with ./shotgun.sh comparison input > output
 
-#exmaple command: ./shotgun.sh dual.labled.loops.tsv sra_taxid.csv.zst > SRR.linked.loops.tsv
+#exmaple command: ./shotgun.sh dual.labled.loops.tsv circles.triple.labled.tsv.zst > SRR.linked.loops.tsv
 
 --------- Shotgun.sh results -----------------------
 
