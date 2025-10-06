@@ -1,0 +1,82 @@
+Marcos sent over his INFERNAL CMs. Time to put them to work. 
+
+I'm going to be running our dual filtered files through them. I doubt much of interest will pop up given the extremely limited number of clusters, but let's see. 
+
+----- Over 5 members per cluster -----
+
+Zilch with CMscan
+
+----- 3 to 5 members per cluster -----
+
+Also zilch with CMscan
+
+----- Under 3 members per cluster -----
+
+#target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+Pistol               RF02679   cluster_num=802275   -          cm        1       68       54       71      +    no    1 0.72   0.0   10.6     0.088 ?   Pistol ribozyme
+dvr_rdva2            -         cluster_num=1600463  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+dvr_rdva2            -         cluster_num=2021510  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+dvr_rdva2            -         cluster_num=3520392  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+Twister-P5           RF02684   cluster_num=2962852  -          cm        1       58     2217     2174      -    no    1 0.55   0.0   14.2     0.076 ?   Type-P5 twister ribozyme
+Hammerhead_II        RF02276   cluster_num=3705921  -          cm        4       56     1710     1664      -    no    1 0.68   0.0   18.1    0.0065 !   hhr type II
+Hammerhead_II        RF02276   cluster_num=3705922  -          cm        4       56     1710     1664      -    no    1 0.68   0.0   18.1    0.0065 !   hhr type II
+Hammerhead_II        RF02276   cluster_num=1398642  -          cm        4       56     1710     1664      -    no    1 0.68   0.0   18.1    0.0065 !   hhr type II
+fusarihhr1_NCBI_2_10 -         cluster_num=152294   -          cm        1       51      702      657      -    no    1 0.78   0.1   12.1     0.031 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=152295   -          cm        1       51      702      657      -    no    1 0.78   0.1   12.1     0.031 ?   -
+Hammerhead_II        RF02276   cluster_num=2294318  -          cm        1       66      105      168      +    no    1 0.70   0.6   13.5     0.061 ?   hhr type II
+new_vs5              -         cluster_num=2196342  -          cm        1      135      130        1      -    3'    3 0.32   0.3   10.1     0.067 ?   -
+Twister-P5           RF02684   cluster_num=2669613  -          cm        1       58      246      296      +    no    1 0.57   0.0   18.2    0.0072 !   Type-P5 twister ribozyme
+Hammerhead_II        RF02276   cluster_num=1832202  -          cm        4       56     1710     1664      -    no    1 0.68   0.0   18.1    0.0065 !   hhr type II
+Pistol               RF02679   cluster_num=1113972  -          cm        1       68       71       26      -    no    1 0.59   0.0    9.7     0.065 ?   Pistol ribozyme
+dvr_rdva2            -         cluster_num=660743   -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+twister-P3           RF03154   cluster_num=584853   -          cm       33       73        1       41      +    5'    2 0.34   0.0   15.0    0.0059 !   type-P3 twister ribozyme
+fusarihhr1_NCBI_2_10 -         cluster_num=2252896  -          cm        1       51      508      552      +    no    1 0.62   0.0   11.1     0.028 ?   -
+Hammerhead_II        RF02276   cluster_num=1458837  -          cm        1       66      105      168      +    no    1 0.70   0.6   13.5     0.061 ?   hhr type II
+dvr_rdva2            -         cluster_num=2420640  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+Twister-P5           RF02684   cluster_num=3430245  -          cm        1       58     1271     1315      +    no    1 0.56   0.0   15.7     0.031 ?   Type-P5 twister ribozyme
+fusarihhr1_NCBI_2_10 -         cluster_num=2947965  -          cm        1       51      236      191      -    no    1 0.78   0.1   12.1     0.022 ?   -
+Pistol               RF02679   cluster_num=3615829  -          cm        1       68       54       71      +    no    1 0.72   0.0   10.6     0.088 ?   Pistol ribozyme
+fusarihhr1_NCBI_2_10 -         cluster_num=2180928  -          cm        1       51      236      191      -    no    1 0.78   0.1   12.1     0.022 ?   -
+Hammerhead_II        RF02276   cluster_num=2788213  -          cm        1       66      105      168      +    no    1 0.70   0.6   13.5     0.048 ?   hhr type II
+fusarihhr1_NCBI_2_10 -         cluster_num=2200383  -          cm        1       51     1063     1018      -    no    1 0.78   0.1   12.1     0.038 ?   -
+dvr_rdva2            -         cluster_num=1150558  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+Hammerhead_II        RF02276   cluster_num=4041738  -          cm        4       56     1710     1664      -    no    1 0.68   0.0   18.1    0.0065 !   hhr type II
+Hammerhead_II        RF02276   cluster_num=932901   -          cm        4       56     1710     1664      -    no    1 0.68   0.0   18.1    0.0065 !   hhr type II
+Pistol               RF02679   cluster_num=3512471  -          cm        1       68       70       87      +    no    1 0.72   0.0   10.6     0.088 ?   Pistol ribozyme
+fusarihhr1_NCBI_2_10 -         cluster_num=3350950  -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=1192329  -          cm        1       51      702      657      -    no    1 0.78   0.1   12.1     0.031 ?   -
+Twister-sister       RF02681   cluster_num=3437178  -          cm        1       80      208      169      -    no    1 0.65   0.0   14.9     0.022 ?   Twister_sister_ribozyme
+Pistol               RF02679   cluster_num=2905254  -          cm        1       68       54       71      +    no    1 0.72   0.0   10.6     0.088 ?   Pistol ribozyme
+Pistol               RF02679   cluster_num=3834683  -          cm        1       68       71       26      -    no    1 0.59   0.0    9.7     0.065 ?   Pistol ribozyme
+Hammerhead_II        RF02276   cluster_num=2509687  -          cm       30       47      107       90      -    no    1 0.78   0.0   10.4      0.06 ?   hhr type II
+Twister-P5           RF02684   cluster_num=879712   -          cm        1       58     2217     2174      -    no    1 0.55   0.0   14.2     0.076 ?   Type-P5 twister ribozyme
+Twister-P5           RF02684   cluster_num=237999   -          cm        1       58     2004     1961      -    no    1 0.55   0.0   14.2     0.076 ?   Type-P5 twister ribozyme
+fusarihhr1_NCBI_2_10 -         cluster_num=3695827  -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=2058550  -          cm        1       51      702      657      -    no    1 0.78   0.1   12.1     0.031 ?   -
+dvr_rdva2            -         cluster_num=3168549  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=2618236  -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=2618237  -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=2228870  -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+Twister-sister       RF02681   cluster_num=3950050  -          cm        1       80      874      913      +    no    1 0.65   0.0   14.9     0.021 ?   Twister_sister_ribozyme
+Twister-P5           RF02684   cluster_num=3739944  -          cm        1       58     1662     1705      +    no    1 0.55   0.0   14.2     0.076 ?   Type-P5 twister ribozyme
+fusarihhr1_NCBI_2_10 -         cluster_num=399916   -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=2992013  -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=918469   -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+dvr_rdva2            -         cluster_num=2801576  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+dvr_rdva2            -         cluster_num=2801577  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=1385505  -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+fusarihhr1_NCBI_2_10 -         cluster_num=1385506  -          cm        1       51      890      935      +    no    1 0.78   0.1   12.1     0.075 ?   -
+Twister-P5           RF02684   cluster_num=3090506  -          cm        1       58     1353     1396      +    no    1 0.55   0.0   14.2     0.076 ?   Type-P5 twister ribozyme
+dvr_rdva2            -         cluster_num=3860841  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+dvr_rdva2            -         cluster_num=3860842  -          cm        7       30      526      504      -    no    1 0.61   0.0   15.8     0.098 ?   -
+Twister-P5           RF02684   cluster_num=1349925  -          cm        1       58     2217     2174      -    no    1 0.55   0.0   14.2     0.076 ?   Type-P5 twister ribozyme
+hairpin-meta         -         cluster_num=144660   -          cm        1       90       81      164      +    no    1 0.36   0.0   15.5    0.0076 !   hairpin ribozymes found in metatranscriptomes
+Pistol               RF02679   cluster_num=1783640  -          cm        1       68      965      986      +    no    1 0.23   0.0   13.7     0.072 ?   Pistol ribozyme
+#
+# Program:         cmscan
+# Version:         1.1.5 (Sep 2023)
+# Pipeline mode:   SCAN
+# Query file:      Saccharomyces.X3.under.3.dual.filtered.fa
+# Target file:     Marcos.cm
+# Option settings: cmscan --tblout Saccharomyces.X3.under.3.infernal.tbl -E 0.1 --cpu 48 Marcos.cm Saccharomyces.X3.under.3.dual.filtered.fa 
