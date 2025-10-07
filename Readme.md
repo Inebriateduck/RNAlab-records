@@ -152,7 +152,7 @@ What's needed:
 
 FILTER_SPECIES=Saccharomyces FILTER_MODE=count FILTER_CUTOFF=2 ./Subsplitter.sh Saccharomyces.X3.circles.w.contigs.tsv Saccharomyces.X3.0-3.fa 
 
- ^                            ^                        ^                                      ^                                ^ 
+ ^                                ^                        ^                                      ^                                ^ 
  
 Filters based on the         Filters based on      Number of hits or                      Input                            Small output
 header of the species        the number of hits    % of cluster that is
