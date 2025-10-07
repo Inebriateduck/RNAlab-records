@@ -229,8 +229,10 @@ Filtering complete:
 
 ---- Step 7: Searching in circles (Scanning the remaining loops for virus and viroid signatures) ----
 
-There is now a FASTA file full of RNA circles with no clear origin. Whether they are viroids, viruses, transposons or just junk is completely unknown. To discern what they are, they are tested with multiple different methods. INFERNAL is a neat 
-little program that can find ribozymes based on covariance models (CMs) (don't ask me how it works, I'm too stupid to know) - it uses runs inputted FASTAs against designated CMs to identify likely ribozymes and outputs a nice table. Publicly 
+Unfortunately, my search in yeast did not turn up any new viruses... 
+
+However, there is now a FASTA file full of RNA circles with no clear origin. Whether they are viroids, viruses, transposons or just junk is completely unknown. To discern what they are, they are tested with multiple different methods. INFERNAL is a neat 
+little program that can find ribozymes based on covariance models (CMs) - it uses runs inputted FASTAs against designated CMs to identify likely ribozymes and outputs a nice table. Publicly 
 available CMs are not great, but Marcos de la Pena has been nice enough to gift his CMs for this, which are very powerful (Marcos.cm is the name of the CM file). Additionally, programs such as BLASTn can be used against the virus genome archive (for which a file can be found on this github), 
 and Diamond can be deployed against a DB of viral RDRPs and other proteins (unfortunately I did not have time to do that, but the concept is the same as prior diamond runs). 
 
