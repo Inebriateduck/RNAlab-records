@@ -150,14 +150,21 @@ What's needed:
 
 ==== subsplitter.sh ====
 
-FILTER_SPECIES=Saccharomyces FILTER_MODE=count FILTER_CUTOFF=2 ./Subsplitter.sh Saccharomyces.X3.circles.w.contigs.tsv Saccharomyces.X3.0-3.fa Saccharomyces.X3.3-5.fa Saccharomyces.X3.5.fa
-      ^                            ^                  ^                                      
-Filters based on the         Filters based on      Number of hits or 
+FILTER_SPECIES=Saccharomyces FILTER_MODE=count FILTER_CUTOFF=2 ./Subsplitter.sh Saccharomyces.X3.circles.w.contigs.tsv Saccharomyces.X3.0-3.fa 
+
+ ^                            ^                        ^                                      ^                                ^ 
+ 
+Filters based on the         Filters based on      Number of hits or                      Input                            Small output
 header of the species        the number of hits    % of cluster that is
 column. Defaults to          in the species        from the target species 
 Saccharomyces unless          column. Defaults     for the filter modes
 otherwise specified          to % unless 
                               specified
+
+Saccharomyces.X3.3-5.fa Saccharomyces.X3.5.fa
+      ^                            ^  
+      
+Med output                  Big clusters 
 
 ==== subslitter.sh results ====
 Filtered out 16833 clusters with <=2 saccharomyces hits
