@@ -1,5 +1,4 @@
-If you're reading this it's likely because you cannot figure out the scribblings in my lab notebooks. Here's a concatenated version of my workflow which includes the parts that you don't need to rerun for the sake of documnetation. 
-You will probably be starting from step 3, which is the annotation section. Have fun!
+This workflow is for isolating RNA dark matter circles from a dataset that was provided by Rayan, in hopes that we can find new viruses or viroids kicking around in there. This document outlines the entire workflow up until the end of my rotation, so that future students can utilize the data and scripts for their own projects. This workflow starts with the 90% ORF clusters provided by Rayan, and ends with a set of sample origin annotated, reference genome and proteome filtered 35% identity ORF clusters. 
 
 
 ----- Step 1: Clustering -----
@@ -67,6 +66,7 @@ Reported 212678 pairwise alignments, 212678 HSPs.
 60047 queries aligned.
 
 ===== DAG results =====
+
 Total time = 5.777s
 Reported 16007 pairwise alignments, 16007 HSPs.
 9676 queries aligned
@@ -87,6 +87,19 @@ What's needed:
 6. Script to convert .UC to .tsv (polymorph.py)
 7. Script to split the .tsv into designated bins based on species (Fly.grabber.R)
 
+
+===== Execution of Fly.grabber.R on SRR.linked.triple.circles.tsv (annotated tsv) =====
+
+Detected 13 columns and 11417413 rows
+Processed 4145789 groups out of 4145789. 100% done. Time elapsed: 108s. ETA: 0s.
+Output file summary (matches actual output files):
+              output_file num_clusters total_sequences
+              output file       clus num       seq num
+1:          Saccharomyces        17076           56813
+2: Caenorhabditis_elegans        15792           42257
+3:             Drosophila        55754          121630
+4:                no_hits      4057560         7073522
+
 ---- Step 4: Addition of contigs to .tsv file -----
 
 This step adds the contigs of each SRA to the centroid of each cluster (trust me, trying to add the contig to each member made the file far too large). First, column 9, which contains the query, is split and the SRA extracted into a seperate file. 
@@ -94,7 +107,7 @@ The contigs are then pulled from the SRA. The resulting file is then merged with
 
 What's needed:
 
-1. gawk script to split the SRAs off
+1. gawk script to split the SRAs for your target file off (in this case, my saccharomyces file)
 2. bash script to grep the contigs
 3. python script to merge the files
 
@@ -218,6 +231,6 @@ Filtering complete:
 
 There is now a FASTA file full of RNA circles with no clear origin. Whether they are viroids, viruses, transposons or just junk is completely unknown. To discern what they are, they are tested with multiple different methods. INFERNAL is a neat 
 little program that can find ribozymes based on covariance models (CMs) (don't ask me how it works, I'm too stupid to know) - it uses runs inputted FASTAs against designated CMs to identify likely ribozymes and outputs a nice table. Publicly 
-available CMs are not great, but Marcos de la Pena has been nice enough to gift his CMs for this, which are very powerful. Additionally, programs such as BLASTn can be used against the virus genome archive (for which a file can be found on this github), 
+available CMs are not great, but Marcos de la Pena has been nice enough to gift his CMs for this, which are very powerful (Marcos.cm is the name of the CM file). Additionally, programs such as BLASTn can be used against the virus genome archive (for which a file can be found on this github), 
 and Diamond can be deployed against a DB of viral RDRPs and other proteins (unfortunately I did not have time to do that, but the concept is the same as prior diamond runs). 
 
