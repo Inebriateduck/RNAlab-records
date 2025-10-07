@@ -13,8 +13,9 @@ The resulting Uclust .UC file is the core of this workflow
 
 ==== Execution ====
 
+```
 usearch -cluster_fast orfs.cluster_size_over_10.fasta -id 0.35 -centroids circ_centroids.fasta -uc circ_clusters.uc
-
+```
 The resulting UC file had 11417413 instances, down from 14543248 (not that a good chunk of instances in the UC file are denoted by "C" and not a cluster member)
 
 U clust output format: 
@@ -48,6 +49,7 @@ What is needed:
 
 ==== Execution ====
 
+```
 diamond blastp \
   --db cenDB.dmnd \
   --query Obelisk_DB_v1.1_Logan_Run_2_Oblin1.fa \
@@ -56,7 +58,7 @@ diamond blastp \
   --max-target-seqs 5 \
   --evalue 1e-5 \
   --threads 72
-
+```
   plug and play with your target inputs...
 
 ===== Oblin Results =====
@@ -114,6 +116,8 @@ What's needed:
 ==== Execution ====
 
 ==== gawk script ====
+
+```
 gawk -F'\t' 'NR==1 {
     print $0"\tSRR\tID\tKa"; next
 }
@@ -129,12 +133,14 @@ gawk -F'\t' 'NR==1 {
     if (match($9, /ka:f:([0-9.]+)/, m)) ka=m[1];
     print $0"\t"run"\t"ID"\t"ka;
 }' output_clusters_Caenorhabditis_elegans_only.tsv > processed.C.elegans.circles.tsv
-
+```
 ==== Contig extraction ====
-time zstd -dc tester.target.fa.zst | parallel --pipe --block 50M --jobs 20 grep -A1 -f tester.txt > extracted_sequences.fasta
+
+```time zstd -dc tester.target.fa.zst | parallel --pipe --block 50M --jobs 20 grep -A1 -f tester.txt > extracted_sequences.fasta```
 
 ==== Merging with merger.py ====
-python3 merger.py c.elegans.X2.processed.circles.tsv c.elegans.circle.contigs.fa -o merged.output.tsv -v
+
+```python3 merger.py c.elegans.X2.processed.circles.tsv c.elegans.circle.contigs.fa -o merged.output.tsv -v```
 
 ---- Step 5: Preparing files for filtering ----
 
@@ -150,6 +156,7 @@ What's needed:
 
 ==== subsplitter.sh ====
 
+```
 FILTER_SPECIES=Saccharomyces FILTER_MODE=count FILTER_CUTOFF=2 ./Subsplitter.sh Saccharomyces.X3.circles.w.contigs.tsv Saccharomyces.X3.0-3.fa 
 
  ^                                ^                      ^                                      ^                                ^ 
@@ -166,8 +173,9 @@ Saccharomyces.X3.3-5.fa     Saccharomyces.X3.5.fa
       ^                            ^  
       
    Medium output              Large clusters
-
+```
 ==== subslitter.sh results ====
+
 Filtered out 16833 clusters with <=2 saccharomyces hits
 Splitting complete. Checking output files...
 Small clusters (<3): 0 sequences
@@ -175,6 +183,8 @@ Medium clusters (3-5): 121 sequences
 Large clusters (>5): 122 sequences
 
 ==== File checking ====
+
+```
 awk '/^>/ {
     if(header && !seq) print "Missing sequence for: " header
     header=$0; seq=""
@@ -183,7 +193,7 @@ awk '/^>/ {
 END {
     if(header && !seq) print "Missing sequence for: " header
 }' Saccharomyces.X3.final.fasta
-
+```
 
 If a line is bad, cut it and move on. 
 
@@ -204,14 +214,15 @@ What you need:
 
 === Diamond + breaker ====
 
+```
 diamond blastx -d yeastRP.dmnd -q Saccharomyces.X3.5.fa -o Saccharomyces.X3.5.dmnd.hits.m8 -f 6 --evalue 1e-5   --threads 64
-
+```
 Total time = 0.391s
 Reported 350 pairwise alignments, 350 HSPs.
 75 queries aligned.
-
+```
 python3 Diamond.breaker.py Saccharomyces.X3.5.dmnd.hits.m8 Saccharomyces.X3.5.fa Saccharomyces.X3.5.dmnd.null.fa
-
+```
 Filtering FASTA file...
 Filtering complete:
   Sequences kept: 47
@@ -220,15 +231,18 @@ Filtering complete:
 
 ==== Bowtie2 + breaker ====
 
+```
 bowtie2 -p 8 -f -x reference_index -U Saccharomyces.X3.5.dmnd.null.fa -S Saccharomyces.X3.5.BT2.sam
+```
 47 reads; of these:
   47 (100.00%) were unpaired; of these:
     25 (53.19%) aligned 0 times
     15 (31.91%) aligned exactly 1 time
     7 (14.89%) aligned >1 times
 46.81% overall alignment rate
-
+```
 Bowtie.breaker.py Saccharomyces.X3.5.BT2.sam Saccharomyces.X3.5.dmnd.null.fa Saccharomyces.X3.5.double.null.fa
+```
 Filtering FASTA file...
 Filtering complete:
   Sequences kept: 25
